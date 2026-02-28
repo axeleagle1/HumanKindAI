@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, Search, Image as ImageIcon, Grid } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Image as ImageIcon,
+  Grid,
+  MoreHorizontal,
+  Share2,
+  Users,
+  Pencil,
+  Pin,
+  Archive,
+  Trash2,
+} from "lucide-react";
 
 type Message = {
   role: "user" | "assistant";
@@ -23,10 +35,19 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showApps, setShowApps] = useState(false);
 
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeChat = chats.find((c) => c.id === activeChatId);
+
+  // Close chat menu when clicking anywhere
+  useEffect(() => {
+    const close = () => setOpenMenuFor(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
   // Load chats (and create a first chat if none exist)
   useEffect(() => {
@@ -64,6 +85,29 @@ export default function Home() {
     };
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
+    setOpenMenuFor(null);
+  };
+
+  const renameChat = (chatId: string) => {
+    const current = chats.find((c) => c.id === chatId)?.title ?? "";
+    const next = window.prompt("Rename chat", current);
+    if (!next?.trim()) return;
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, title: next.trim() } : c))
+    );
+  };
+
+  const deleteChat = (chatId: string) => {
+    const ok = window.confirm("Delete this chat?");
+    if (!ok) return;
+
+    // compute next active before updating
+    const remaining = chats.filter((c) => c.id !== chatId);
+    setChats(remaining);
+
+    if (activeChatId === chatId) {
+      setActiveChatId(remaining[0]?.id ?? null);
+    }
   };
 
   const sendText = async () => {
@@ -247,24 +291,120 @@ export default function Home() {
 
           {/* Chats */}
           <div className="mt-6 flex-1 overflow-y-auto space-y-2 pr-1">
-            {(searchQuery ? filteredChats : chats).map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => setActiveChatId(chat.id)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-sm truncate border transition ${
-                  chat.id === activeChatId
-                    ? "bg-blue-500/10 border-blue-400/20 shadow-sm shadow-blue-500/10"
-                    : "bg-white/0 border-transparent hover:bg-white/5 hover:border-white/10"
-                }`}
-                title={chat.title}
-              >
-                {chat.title}
-              </button>
-            ))}
-          </div>
+            {(searchQuery ? filteredChats : chats).map((chat) => {
+              const isActive = chat.id === activeChatId;
 
-          <div className="pt-4 text-xs text-white/35">
-            Calm • Ethical • Private by design
+              return (
+                <div
+                  key={chat.id}
+                  className={`group relative flex items-center gap-2 rounded-xl border transition ${
+                    isActive
+                      ? "bg-blue-500/10 border-blue-400/20 shadow-sm shadow-blue-500/10"
+                      : "bg-white/0 border-transparent hover:bg-white/5 hover:border-white/10"
+                  }`}
+                >
+                  {/* chat row click */}
+                  <button
+                    onClick={() => setActiveChatId(chat.id)}
+                    className="flex-1 text-left px-3 py-2 text-sm truncate"
+                    title={chat.title}
+                  >
+                    {chat.title}
+                  </button>
+
+                  {/* 3-dot menu button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuFor((prev) => (prev === chat.id ? null : chat.id));
+                    }}
+                    className={`mr-2 h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition ${
+                      isActive ? "flex" : "hidden group-hover:flex"
+                    }`}
+                    aria-label="Chat options"
+                    title="Options"
+                  >
+                    <MoreHorizontal size={16} />
+                  </button>
+
+                  {/* dropdown */}
+                  {openMenuFor === chat.id && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-2 top-11 z-50 w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+                    >
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                        onClick={() => {
+                          setOpenMenuFor(null);
+                          alert("Share (coming soon)");
+                        }}
+                      >
+                        <Share2 size={16} />
+                        Share
+                      </button>
+
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                        onClick={() => {
+                          setOpenMenuFor(null);
+                          alert("Start a group chat (coming soon)");
+                        }}
+                      >
+                        <Users size={16} />
+                        Start a group chat
+                      </button>
+
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                        onClick={() => {
+                          setOpenMenuFor(null);
+                          renameChat(chat.id);
+                        }}
+                      >
+                        <Pencil size={16} />
+                        Rename
+                      </button>
+
+                      <div className="h-px bg-white/10 my-1" />
+
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                        onClick={() => {
+                          setOpenMenuFor(null);
+                          alert("Pin chat (coming soon)");
+                        }}
+                      >
+                        <Pin size={16} />
+                        Pin chat
+                      </button>
+
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                        onClick={() => {
+                          setOpenMenuFor(null);
+                          alert("Archive (coming soon)");
+                        }}
+                      >
+                        <Archive size={16} />
+                        Archive
+                      </button>
+
+                      <button
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
+                        onClick={() => {
+                          setOpenMenuFor(null);
+                          deleteChat(chat.id);
+                        }}
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </aside>
 
