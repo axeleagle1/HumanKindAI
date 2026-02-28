@@ -12,10 +12,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "HumanKindAI",
   description:
     "HumanKindAI is a calm, ethical AI companion built to support mental clarity, emotional growth, and practical self-improvement.",
+  icons: {
+    icon: "/favicon.ico",        // browser tab
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",          // optional (512x512)
+  },
 };
 
 export default function RootLayout({
