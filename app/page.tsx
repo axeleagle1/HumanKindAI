@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Search,
@@ -13,12 +13,16 @@ import {
   Pin,
   Archive,
   Trash2,
+  X,
+  SendHorizonal,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
-  image?: string;
+  image?: string; // stored, but not rendered
 };
 
 type Chat = {
@@ -30,26 +34,40 @@ type Chat = {
 export default function Home() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showApps, setShowApps] = useState(false);
 
+  // Sidebar collapse
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // 3-dot menu per chat row
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+
+  // Custom modals
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const activeChat = chats.find((c) => c.id === activeChatId);
+  const activeChat = useMemo(
+    () => chats.find((c) => c.id === activeChatId),
+    [chats, activeChatId]
+  );
 
-  // Close chat menu when clicking anywhere
+  // Close chat menu when clicking outside
   useEffect(() => {
     const close = () => setOpenMenuFor(null);
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
 
-  // Load chats (and create a first chat if none exist)
+  // Load chats (create first chat if none exist)
   useEffect(() => {
     const saved = localStorage.getItem("humankindai-chats");
     if (saved) {
@@ -72,7 +90,7 @@ export default function Home() {
     localStorage.setItem("humankindai-chats", JSON.stringify(chats));
   }, [chats]);
 
-  // Auto scroll
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages, loading]);
@@ -88,35 +106,13 @@ export default function Home() {
     setOpenMenuFor(null);
   };
 
-  const renameChat = (chatId: string) => {
-    const current = chats.find((c) => c.id === chatId)?.title ?? "";
-    const next = window.prompt("Rename chat", current);
-    if (!next?.trim()) return;
-    setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, title: next.trim() } : c))
-    );
-  };
-
-  const deleteChat = (chatId: string) => {
-    const ok = window.confirm("Delete this chat?");
-    if (!ok) return;
-
-    // compute next active before updating
-    const remaining = chats.filter((c) => c.id !== chatId);
-    setChats(remaining);
-
-    if (activeChatId === chatId) {
-      setActiveChatId(remaining[0]?.id ?? null);
-    }
-  };
-
   const sendText = async () => {
-    if (!input.trim() || !activeChat || loading) return;
-
+    if (!activeChat || loading) return;
     const messageToSend = input.trim();
+    if (!messageToSend) return;
+
     const userMessage: Message = { role: "user", content: messageToSend };
 
-    // Optimistic add user message + set title if first message
     setChats((prev) =>
       prev.map((chat) =>
         chat.id === activeChat.id
@@ -175,6 +171,7 @@ export default function Home() {
     }
   };
 
+  // Store image as hidden attachment; do not display the photo
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeChat) return;
@@ -183,7 +180,7 @@ export default function Home() {
     reader.onload = () => {
       const imageMessage: Message = {
         role: "user",
-        content: "",
+        content: "📎 Image attached",
         image: reader.result as string,
       };
 
@@ -196,18 +193,52 @@ export default function Home() {
       );
     };
     reader.readAsDataURL(file);
-
-    // allow re-uploading same file
     e.target.value = "";
   };
 
-  const filteredChats = chats.filter((chat) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      chat.title.toLowerCase().includes(q) ||
-      chat.messages.some((msg) => msg.content.toLowerCase().includes(q))
+  const requestRenameChat = (chatId: string) => {
+    const current = chats.find((c) => c.id === chatId)?.title ?? "New Chat";
+    setRenameTargetId(chatId);
+    setRenameValue(current);
+  };
+
+  const confirmRenameChat = () => {
+    if (!renameTargetId) return;
+    const next = renameValue.trim();
+    if (!next) return;
+
+    setChats((prev) =>
+      prev.map((c) => (c.id === renameTargetId ? { ...c, title: next } : c))
     );
-  });
+    setRenameTargetId(null);
+  };
+
+  const requestDeleteChat = (chatId: string) => {
+    setDeleteTargetId(chatId);
+  };
+
+  const confirmDeleteChat = () => {
+    if (!deleteTargetId) return;
+
+    const remaining = chats.filter((c) => c.id !== deleteTargetId);
+    setChats(remaining);
+
+    if (activeChatId === deleteTargetId) {
+      setActiveChatId(remaining[0]?.id ?? null);
+    }
+
+    setDeleteTargetId(null);
+  };
+
+  const filteredChats = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return chats.filter((chat) => {
+      return (
+        chat.title.toLowerCase().includes(q) ||
+        chat.messages.some((msg) => msg.content.toLowerCase().includes(q))
+      );
+    });
+  }, [chats, searchQuery]);
 
   return (
     <div className="min-h-screen text-white">
@@ -217,10 +248,27 @@ export default function Home() {
 
       <div className="flex min-h-screen">
         {/* Sidebar */}
-        <aside className="w-72 border-r border-white/5 bg-white/[0.03] backdrop-blur-2xl p-6 flex flex-col">
+        <aside
+          className={`relative border-r border-white/5 bg-white/[0.03] backdrop-blur-2xl flex flex-col transition-all duration-200 ${
+            sidebarCollapsed ? "w-16 p-4" : "w-72 p-6"
+          }`}
+        >
+          {/* Collapse button (arrow) */}
+          <button
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            className="absolute -right-3 top-6 z-40 h-7 w-7 rounded-full border border-white/10 bg-[#0b1220]/90 backdrop-blur flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition"
+            title={sidebarCollapsed ? "Show chats" : "Hide chats"}
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight size={16} />
+            ) : (
+              <ChevronLeft size={16} />
+            )}
+          </button>
+
           {/* Brand */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
               <img
                 src="/logo.png"
                 alt="HumanKindAI Logo"
@@ -228,58 +276,64 @@ export default function Home() {
               />
             </div>
 
-            <div>
-              <h2 className="text-lg font-semibold text-white/90 leading-tight">
-                HumanKindAI
-              </h2>
-              <p className="text-[11px] text-white/40 tracking-wide">
-                Emotional Intelligence AI
-              </p>
-            </div>
+            {!sidebarCollapsed && (
+              <div>
+                <h2 className="text-lg font-semibold text-white/90 leading-tight">
+                  HumanKindAI
+                </h2>
+              </div>
+            )}
           </div>
 
           {/* New Chat */}
           <button
             onClick={createNewChat}
-            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition"
+            className={`flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
+              sidebarCollapsed ? "h-11 px-0" : "px-4 py-2"
+            }`}
+            title="New Chat"
           >
             <Plus size={18} />
-            New Chat
+            {!sidebarCollapsed && "New Chat"}
           </button>
 
           {/* Search */}
-          <div className="mt-6">
-            <div className="flex items-center gap-2 text-white/60 mb-2 text-sm">
-              <Search size={16} />
-              Search chats
+          {!sidebarCollapsed && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 text-white/60 mb-2 text-sm">
+                <Search size={16} />
+                Search chats
+              </div>
+              <input
+                type="text"
+                placeholder="Type a keyword..."
+                className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/35 outline-none focus:ring-2 focus:ring-blue-500/30"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Type a keyword..."
-              className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/35 outline-none focus:ring-2 focus:ring-blue-500/30"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          )}
 
           {/* Quick actions */}
-          <div className="mt-6 flex gap-3 text-sm">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 transition"
-            >
-              <ImageIcon size={16} />
-              Images
-            </button>
+          {!sidebarCollapsed && (
+            <div className="mt-6 flex gap-3 text-sm">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 transition"
+              >
+                <ImageIcon size={16} />
+                Images
+              </button>
 
-            <button
-              onClick={() => setShowApps(true)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 transition"
-            >
-              <Grid size={16} />
-              Apps
-            </button>
-          </div>
+              <button
+                onClick={() => setShowApps(true)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 transition"
+              >
+                <Grid size={16} />
+                Apps
+              </button>
+            </div>
+          )}
 
           <input
             type="file"
@@ -290,122 +344,144 @@ export default function Home() {
           />
 
           {/* Chats */}
-          <div className="mt-6 flex-1 overflow-y-auto space-y-2 pr-1">
-            {(searchQuery ? filteredChats : chats).map((chat) => {
-              const isActive = chat.id === activeChatId;
+          {!sidebarCollapsed && (
+            <div className="mt-6 flex-1 overflow-y-auto space-y-2 pr-1">
+              {(searchQuery ? filteredChats : chats).map((chat) => {
+                const isActive = chat.id === activeChatId;
 
-              return (
-                <div
-                  key={chat.id}
-                  className={`group relative flex items-center gap-2 rounded-xl border transition ${
-                    isActive
-                      ? "bg-blue-500/10 border-blue-400/20 shadow-sm shadow-blue-500/10"
-                      : "bg-white/0 border-transparent hover:bg-white/5 hover:border-white/10"
-                  }`}
-                >
-                  {/* chat row click */}
-                  <button
-                    onClick={() => setActiveChatId(chat.id)}
-                    className="flex-1 text-left px-3 py-2 text-sm truncate"
-                    title={chat.title}
-                  >
-                    {chat.title}
-                  </button>
-
-                  {/* 3-dot menu button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuFor((prev) => (prev === chat.id ? null : chat.id));
-                    }}
-                    className={`mr-2 h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition ${
-                      isActive ? "flex" : "hidden group-hover:flex"
+                return (
+                  <div
+                    key={chat.id}
+                    className={`group relative flex items-center rounded-xl border transition ${
+                      isActive
+                        ? "bg-blue-500/10 border-blue-400/20 shadow-sm shadow-blue-500/10"
+                        : "bg-white/0 border-transparent hover:bg-white/5 hover:border-white/10"
                     }`}
-                    aria-label="Chat options"
-                    title="Options"
                   >
-                    <MoreHorizontal size={16} />
-                  </button>
-
-                  {/* dropdown */}
-                  {openMenuFor === chat.id && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-2 top-11 z-50 w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+                    {/* Chat button */}
+                    <button
+                      onClick={() => setActiveChatId(chat.id)}
+                      className="flex-1 text-left px-3 py-2 text-sm truncate"
+                      title={chat.title}
                     >
-                      <button
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-                        onClick={() => {
-                          setOpenMenuFor(null);
-                          alert("Share (coming soon)");
-                        }}
-                      >
-                        <Share2 size={16} />
-                        Share
-                      </button>
+                      {chat.title}
+                    </button>
 
-                      <button
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-                        onClick={() => {
-                          setOpenMenuFor(null);
-                          alert("Start a group chat (coming soon)");
-                        }}
-                      >
-                        <Users size={16} />
-                        Start a group chat
-                      </button>
+                    {/* 3 dots ONLY appears when hovering directly on the row */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuFor((prev) =>
+                          prev === chat.id ? null : chat.id
+                        );
+                      }}
+                      className="mr-2 hidden group-hover:flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition"
+                      aria-label="Chat options"
+                      title="Options"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
 
-                      <button
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-                        onClick={() => {
-                          setOpenMenuFor(null);
-                          renameChat(chat.id);
-                        }}
+                    {/* Dropdown */}
+                    {openMenuFor === chat.id && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-2 top-11 z-50 w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
                       >
-                        <Pencil size={16} />
-                        Rename
-                      </button>
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                          onClick={() => {
+                            setOpenMenuFor(null);
+                            alert("Share (coming soon)");
+                          }}
+                        >
+                          <Share2 size={16} />
+                          Share
+                        </button>
 
-                      <div className="h-px bg-white/10 my-1" />
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                          onClick={() => {
+                            setOpenMenuFor(null);
+                            alert("Start a group chat (coming soon)");
+                          }}
+                        >
+                          <Users size={16} />
+                          Start a group chat
+                        </button>
 
-                      <button
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-                        onClick={() => {
-                          setOpenMenuFor(null);
-                          alert("Pin chat (coming soon)");
-                        }}
-                      >
-                        <Pin size={16} />
-                        Pin chat
-                      </button>
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                          onClick={() => {
+                            setOpenMenuFor(null);
+                            requestRenameChat(chat.id);
+                          }}
+                        >
+                          <Pencil size={16} />
+                          Rename
+                        </button>
 
-                      <button
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-                        onClick={() => {
-                          setOpenMenuFor(null);
-                          alert("Archive (coming soon)");
-                        }}
-                      >
-                        <Archive size={16} />
-                        Archive
-                      </button>
+                        <div className="h-px bg-white/10 my-1" />
 
-                      <button
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
-                        onClick={() => {
-                          setOpenMenuFor(null);
-                          deleteChat(chat.id);
-                        }}
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                          onClick={() => {
+                            setOpenMenuFor(null);
+                            alert("Pin chat (coming soon)");
+                          }}
+                        >
+                          <Pin size={16} />
+                          Pin chat
+                        </button>
+
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                          onClick={() => {
+                            setOpenMenuFor(null);
+                            alert("Archive (coming soon)");
+                          }}
+                        >
+                          <Archive size={16} />
+                          Archive
+                        </button>
+
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
+                          onClick={() => {
+                            setOpenMenuFor(null);
+                            requestDeleteChat(chat.id);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Collapsed tool buttons */}
+          {sidebarCollapsed && (
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="h-11 w-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Images"
+              >
+                <ImageIcon size={18} />
+              </button>
+              <button
+                onClick={() => setShowApps(true)}
+                className="h-11 w-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Apps"
+              >
+                <Grid size={18} />
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Main */}
@@ -414,7 +490,7 @@ export default function Home() {
             {/* Chat panel */}
             <div className="h-full rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.55)] overflow-hidden">
               {/* Top bar */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+              <div className="flex items-center px-6 py-4 border-b border-white/5">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
                     <img
@@ -424,17 +500,11 @@ export default function Home() {
                     />
                   </div>
                   <div className="leading-tight">
-                    <div className="text-sm text-white/85 font-medium">
-                      {activeChat?.title ?? "HumanKindAI"}
+                    <div className="text-sm text-white/90 font-medium">
+                      {activeChat?.title ?? "New Chat"}
                     </div>
-                    <div className="text-xs text-white/40">
-                      Calm responses • Not medical advice
-                    </div>
+                    <div className="text-xs text-white/40">Conversation</div>
                   </div>
-                </div>
-
-                <div className="text-xs text-white/40">
-                  Press <span className="text-white/60">Enter</span> to send
                 </div>
               </div>
 
@@ -455,8 +525,7 @@ export default function Home() {
                         HumanKindAI
                       </h1>
                       <p className="mt-2 text-sm text-white/50">
-                        A calm, ethical companion for clarity, emotional growth,
-                        and practical self-improvement.
+                        Start a conversation.
                       </p>
 
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
@@ -486,19 +555,13 @@ export default function Home() {
                     }`}
                   >
                     <div
-                      className={`max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border ${
+                      className={`max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
                         msg.role === "user"
-                          ? "bg-blue-600/20 border-blue-400/20 text-white/90 shadow-sm shadow-blue-500/10"
-                          : "bg-white/[0.06] border-white/10 text-white/85"
+                          ? "bg-gradient-to-br from-blue-600/30 to-blue-500/10 border-blue-400/20 text-white/90 shadow-blue-500/10"
+                          : "bg-white/[0.055] border-white/10 text-white/85"
                       }`}
                     >
-                      {msg.image && (
-                        <img
-                          src={msg.image}
-                          alt="uploaded"
-                          className="rounded-xl mb-2 max-h-60 border border-white/10"
-                        />
-                      )}
+                      {/* Do NOT render image previews */}
                       {msg.content}
                     </div>
                   </div>
@@ -513,51 +576,51 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Composer */}
+          {/* Composer (more premium) */}
           {activeChat && (
             <div className="w-full max-w-4xl mt-5">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-xl shadow-lg shadow-black/30 p-2 focus-within:ring-2 focus-within:ring-blue-500/30">
-                <div className="flex items-end gap-2">
-                  <textarea
-                    className="min-h-[54px] flex-1 resize-none bg-transparent px-3 py-3 text-white/90 placeholder:text-white/35 outline-none"
-                    rows={2}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        sendText();
-                      }
-                    }}
-                    placeholder="Talk to HumanKindAI…"
-                  />
+              <div className="rounded-2xl bg-[linear-gradient(90deg,rgba(59,130,246,0.35),rgba(236,72,153,0.22),rgba(34,197,94,0.12))] p-[1px] shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
+                <div className="rounded-2xl border border-white/10 bg-[#0b1220]/60 backdrop-blur-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/30">
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      className="min-h-[56px] flex-1 resize-none bg-transparent px-3 py-3 text-white/90 placeholder:text-white/35 outline-none"
+                      rows={2}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          sendText();
+                        }
+                      }}
+                      placeholder="Write a message"
+                    />
 
-                  <button
-                    onClick={sendText}
-                    disabled={loading || !input.trim()}
-                    className="h-[54px] rounded-xl bg-blue-600 px-6 text-white shadow-md shadow-blue-600/20 hover:bg-blue-500 hover:shadow-blue-500/25 disabled:opacity-50 disabled:hover:bg-blue-600 transition active:scale-[0.99]"
-                  >
-                    Send
-                  </button>
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
-                  {["Summarize", "Make it kinder", "Give 3 options"].map((t) => (
                     <button
-                      key={t}
-                      onClick={() =>
-                        setInput((prev) => (prev ? prev + " " + t : t))
-                      }
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
+                      onClick={sendText}
+                      disabled={loading || !input.trim()}
+                      className="h-[56px] w-[56px] rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/25 hover:bg-blue-500 hover:shadow-blue-500/30 disabled:opacity-50 disabled:hover:bg-blue-600 transition active:scale-[0.98] flex items-center justify-center"
+                      aria-label="Send"
+                      title="Send"
                     >
-                      {t}
+                      <SendHorizonal size={18} />
                     </button>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              <div className="mt-2 text-xs text-white/35 px-1">
-                Tip: Shift+Enter for a new line.
+                  <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
+                    {["Summarize", "Make it kinder", "Give 3 options"].map((t) => (
+                      <button
+                        key={t}
+                        onClick={() =>
+                          setInput((prev) => (prev ? prev + " " + t : t))
+                        }
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -565,7 +628,7 @@ export default function Home() {
 
         {/* Apps Modal */}
         {showApps && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220]/90 p-6 shadow-2xl">
               <h3 className="text-lg font-semibold mb-2">Apps</h3>
               <p className="text-white/55 text-sm mb-5">
@@ -577,6 +640,118 @@ export default function Home() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Modal (nice, not browser confirm) */}
+        {deleteTargetId && (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            onClick={() => setDeleteTargetId(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220]/95 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <h3 className="text-lg font-semibold text-white/90">
+                    Delete chat?
+                  </h3>
+                  <button
+                    onClick={() => setDeleteTargetId(null)}
+                    className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition"
+                    aria-label="Close"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <p className="mt-3 text-sm text-white/60">
+                  This will delete{" "}
+                  <span className="font-semibold text-white/80">
+                    {chats.find((c) => c.id === deleteTargetId)?.title ??
+                      "this chat"}
+                  </span>
+                  .
+                </p>
+                <p className="mt-2 text-xs text-white/35">
+                  This action can’t be undone.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+                <button
+                  onClick={() => setDeleteTargetId(null)}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteChat}
+                  className="rounded-full bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-500 transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rename Modal (consistent, premium) */}
+        {renameTargetId && (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            onClick={() => setRenameTargetId(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220]/95 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <h3 className="text-lg font-semibold text-white/90">
+                    Rename chat
+                  </h3>
+                  <button
+                    onClick={() => setRenameTargetId(null)}
+                    className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition"
+                    aria-label="Close"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  <label className="text-xs text-white/45">Chat name</label>
+                  <input
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") confirmRenameChat();
+                    }}
+                    className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/35 outline-none focus:ring-2 focus:ring-blue-500/30"
+                    placeholder="New Chat"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+                <button
+                  onClick={() => setRenameTargetId(null)}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRenameChat}
+                  className="rounded-full bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500 transition"
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         )}
