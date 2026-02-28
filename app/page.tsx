@@ -30,6 +30,21 @@ type Chat = {
   messages: Message[];
 };
 
+const makeTitle = (text: string) => {
+  const cleaned = text
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s.,!?'"-]/g, "")
+    .trim();
+
+  if (!cleaned) return "Untitled";
+  if (cleaned.length <= 42) return cleaned;
+
+  const cut = cleaned.slice(0, 42);
+  const words = cut.split(" ");
+  if (words.length <= 1) return cut + "…";
+  return words.slice(0, -1).join(" ") + "…";
+};
+
 export default function Home() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -66,22 +81,27 @@ export default function Home() {
     return () => window.removeEventListener("click", close);
   }, []);
 
-  // Load chats (create first chat if none exist)
+  // Load chats (ALWAYS create a first chat if none exist, including saved "[]")
   useEffect(() => {
     const saved = localStorage.getItem("humankindai-chats");
+
     if (saved) {
       const parsed: Chat[] = JSON.parse(saved);
-      setChats(parsed);
-      if (parsed.length > 0) setActiveChatId(parsed[0].id);
-    } else {
-      const firstChat: Chat = {
-        id: Date.now().toString(),
-        title: "New Chat",
-        messages: [],
-      };
-      setChats([firstChat]);
-      setActiveChatId(firstChat.id);
+      if (parsed.length > 0) {
+        setChats(parsed);
+        setActiveChatId(parsed[0].id);
+        return;
+      }
     }
+
+    const firstChat: Chat = {
+      id: Date.now().toString(),
+      title: "Untitled",
+      messages: [],
+    };
+
+    setChats([firstChat]);
+    setActiveChatId(firstChat.id);
   }, []);
 
   // Save chats
@@ -97,7 +117,7 @@ export default function Home() {
   const createNewChat = () => {
     const newChat: Chat = {
       id: Date.now().toString(),
-      title: "New Chat",
+      title: "Untitled",
       messages: [],
     };
     setChats((prev) => [newChat, ...prev]);
@@ -119,7 +139,7 @@ export default function Home() {
               ...chat,
               title:
                 chat.messages.length === 0
-                  ? messageToSend.slice(0, 30)
+                  ? makeTitle(messageToSend)
                   : chat.title,
               messages: [...chat.messages, userMessage],
             }
@@ -196,7 +216,7 @@ export default function Home() {
   };
 
   const requestRenameChat = (chatId: string) => {
-    const current = chats.find((c) => c.id === chatId)?.title ?? "New Chat";
+    const current = chats.find((c) => c.id === chatId)?.title ?? "Untitled";
     setRenameTargetId(chatId);
     setRenameValue(current);
   };
@@ -223,7 +243,16 @@ export default function Home() {
     setChats(remaining);
 
     if (activeChatId === deleteTargetId) {
-      setActiveChatId(remaining[0]?.id ?? null);
+      if (remaining.length > 0) setActiveChatId(remaining[0].id);
+      else {
+        const fresh: Chat = {
+          id: Date.now().toString(),
+          title: "Untitled",
+          messages: [],
+        };
+        setChats([fresh]);
+        setActiveChatId(fresh.id);
+      }
     }
 
     setDeleteTargetId(null);
@@ -239,6 +268,12 @@ export default function Home() {
     });
   }, [chats, searchQuery]);
 
+  // ✅ Premium behavior: only show chats that have at least 1 message (no cheap "New Chat")
+  const visibleChats = useMemo(() => {
+    const base = searchQuery ? filteredChats : chats;
+    return base.filter((c) => c.messages.length > 0);
+  }, [chats, filteredChats, searchQuery]);
+
   return (
     <div className="min-h-screen text-white">
       {/* Background */}
@@ -252,22 +287,8 @@ export default function Home() {
             sidebarCollapsed ? "w-20 p-4" : "w-72 p-6"
           }`}
         >
-          {/* Header row */}
-          {!sidebarCollapsed ? (
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-sm font-medium text-white/80">
-                Your chats <span className="text-white/40">›</span>
-              </div>
-
-              <button
-                onClick={() => setSidebarCollapsed(true)}
-                className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
-                title="Collapse sidebar"
-              >
-                <PanelLeft size={16} />
-              </button>
-            </div>
-          ) : (
+          {/* Collapsed toggle */}
+          {sidebarCollapsed ? (
             <div className="flex items-center justify-center mb-3">
               <button
                 onClick={() => setSidebarCollapsed(false)}
@@ -277,11 +298,9 @@ export default function Home() {
                 <PanelLeft size={16} />
               </button>
             </div>
-          )}
-
-          {/* Brand (hide logo in collapsed mode; keep minimal) */}
-          {!sidebarCollapsed && (
+          ) : (
             <div className="flex items-center gap-3 mb-6">
+              {/* Brand */}
               <div className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
                 <img
                   src="/logo.png"
@@ -295,6 +314,21 @@ export default function Home() {
                   HumanKindAI
                 </h2>
               </div>
+
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="ml-auto h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Collapse sidebar"
+              >
+                <PanelLeft size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Section label (expanded only) */}
+          {!sidebarCollapsed && (
+            <div className="text-xs uppercase tracking-wider text-white/40 mb-3">
+              Your chats
             </div>
           )}
 
@@ -304,7 +338,7 @@ export default function Home() {
             className={`flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
               sidebarCollapsed ? "h-12 w-12 mx-auto" : "px-4 py-2"
             }`}
-            title="New Chat"
+            title="New chat"
           >
             <Plus size={18} />
             {!sidebarCollapsed && "New Chat"}
@@ -380,7 +414,7 @@ export default function Home() {
           {/* Chats */}
           {!sidebarCollapsed && (
             <div className="mt-6 flex-1 overflow-y-auto space-y-2 pr-1">
-              {(searchQuery ? filteredChats : chats).map((chat) => {
+              {visibleChats.map((chat) => {
                 const isActive = chat.id === activeChatId;
 
                 return (
@@ -501,11 +535,11 @@ export default function Home() {
           <div className="w-full max-w-4xl flex-1">
             {/* Chat panel */}
             <div className="h-full rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.55)] overflow-hidden">
-              {/* Top bar (NO logo, NO Conversation) */}
+              {/* Top bar (NO logo) */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-white/90">
-                    {activeChat?.title ?? "New Chat"}
+                    {activeChat?.messages.length ? activeChat.title : "HumanKindAI"}
                   </div>
                 </div>
               </div>
@@ -563,7 +597,6 @@ export default function Home() {
                           : "bg-white/[0.055] border-white/10 text-white/85"
                       }`}
                     >
-                      {/* Do NOT render image previews */}
                       {msg.content}
                     </div>
                   </div>
@@ -736,7 +769,7 @@ export default function Home() {
                       if (e.key === "Enter") confirmRenameChat();
                     }}
                     className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/35 outline-none focus:ring-2 focus:ring-blue-500/30"
-                    placeholder="New Chat"
+                    placeholder="Untitled"
                     autoFocus
                   />
                 </div>
