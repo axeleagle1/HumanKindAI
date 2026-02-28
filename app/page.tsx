@@ -46,6 +46,9 @@ const makeTitle = (text: string) => {
   return words.slice(0, -1).join(" ") + "…";
 };
 
+const clamp = (n: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, n));
+
 export default function Home() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -62,9 +65,16 @@ export default function Home() {
   // Mobile drawer
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Menus (desktop + mobile)
+  // Menus (desktop)
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
-  const [mobileMenuFor, setMobileMenuFor] = useState<string | null>(null);
+
+  // Mobile menu (smart anchored)
+  const [mobileMenu, setMobileMenu] = useState<null | {
+    chatId: string;
+    top: number;
+    left: number;
+    openUp: boolean;
+  }>(null);
 
   // Custom modals
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -81,7 +91,7 @@ export default function Home() {
 
   const closeAllMenus = () => {
     setOpenMenuFor(null);
-    setMobileMenuFor(null);
+    setMobileMenu(null);
   };
 
   // Close menus when clicking outside
@@ -89,6 +99,19 @@ export default function Home() {
     const close = () => closeAllMenus();
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
+  }, []);
+
+  // Close mobile anchored menu on scroll/resize (prevents floating weirdness)
+  useEffect(() => {
+    const close = () => {
+      setMobileMenu(null);
+    };
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, []);
 
   // Load chats (ALWAYS create a first chat if none exist, including saved "[]")
@@ -290,6 +313,33 @@ export default function Home() {
     setMobileSidebarOpen(false);
   };
 
+  const openMobileMenu = (chatId: string, buttonEl: HTMLElement) => {
+    const rect = buttonEl.getBoundingClientRect();
+
+    // Match Tailwind w-56
+    const MENU_W = 224;
+    // Approx height for your menu (6 items + dividers)
+    const MENU_H = 310;
+    const PAD = 10;
+
+    const openUp = rect.bottom + MENU_H + PAD > window.innerHeight;
+
+    const left = clamp(
+      rect.right - MENU_W,
+      PAD,
+      window.innerWidth - MENU_W - PAD
+    );
+
+    const top = openUp ? rect.top - MENU_H - 8 : rect.bottom + 8;
+
+    setMobileMenu({
+      chatId,
+      left,
+      top: clamp(top, PAD, window.innerHeight - MENU_H - PAD),
+      openUp,
+    });
+  };
+
   // Sidebar content renderer (desktop + mobile drawer)
   const SidebarContent = ({ isMobile }: { isMobile?: boolean }) => (
     <>
@@ -421,7 +471,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Chat list label (ABOVE chat list) */}
+      {/* Chat list label */}
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
         <div className="mt-8 mb-3 text-xs uppercase tracking-wider text-white/40">
           Your chats
@@ -434,9 +484,8 @@ export default function Home() {
           {visibleChats.map((chat) => {
             const isActive = chat.id === activeChatId;
 
-            const menuOpen =
-              (!isMobile && openMenuFor === chat.id) ||
-              (isMobile && mobileMenuFor === chat.id);
+            const desktopMenuOpen = !isMobile && openMenuFor === chat.id;
+            const mobileMenuOpen = !!isMobile && mobileMenu?.chatId === chat.id;
 
             return (
               <div
@@ -455,18 +504,16 @@ export default function Home() {
                   {chat.title}
                 </button>
 
-                {/* Desktop: hover. Mobile: always visible (no hover on mobile). */}
+                {/* Desktop: hover. Mobile: always visible */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (isMobile) {
-                      setMobileMenuFor((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
+                      const el = e.currentTarget as HTMLElement;
+                      if (mobileMenu?.chatId === chat.id) setMobileMenu(null);
+                      else openMobileMenu(chat.id, el);
                     } else {
-                      setOpenMenuFor((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
+                      setOpenMenuFor((prev) => (prev === chat.id ? null : chat.id));
                     }
                   }}
                   className={`mr-2 h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition ${
@@ -478,7 +525,8 @@ export default function Home() {
                   <MoreHorizontal size={16} />
                 </button>
 
-                {menuOpen && (
+                {/* Desktop menu (kept as-is) */}
+                {desktopMenuOpen && (
                   <div
                     onClick={(e) => e.stopPropagation()}
                     className="absolute right-2 top-11 z-50 w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
@@ -544,7 +592,84 @@ export default function Home() {
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
                       onClick={() => {
                         closeAllMenus();
-                        requestDeleteChat(chat.id);
+                        setTimeout(() => requestDeleteChat(chat.id), 120);
+                      }}
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
+                  </div>
+                )}
+
+                {/* Mobile menu is rendered as FIXED (smart anchored) */}
+                {mobileMenuOpen && mobileMenu && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ top: mobileMenu.top, left: mobileMenu.left }}
+                    className="fixed z-[400] w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+                  >
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        closeAllMenus();
+                        alert("Share (coming soon)");
+                      }}
+                    >
+                      <Share2 size={16} />
+                      Share
+                    </button>
+
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        closeAllMenus();
+                        alert("Start a group chat (coming soon)");
+                      }}
+                    >
+                      <Users size={16} />
+                      Start a group chat
+                    </button>
+
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        closeAllMenus();
+                        requestRenameChat(chat.id);
+                      }}
+                    >
+                      <Pencil size={16} />
+                      Rename
+                    </button>
+
+                    <div className="h-px bg-white/10 my-1" />
+
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        closeAllMenus();
+                        alert("Pin chat (coming soon)");
+                      }}
+                    >
+                      <Pin size={16} />
+                      Pin chat
+                    </button>
+
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        closeAllMenus();
+                        alert("Archive (coming soon)");
+                      }}
+                    >
+                      <Archive size={16} />
+                      Archive
+                    </button>
+
+                    <button
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
+                      onClick={() => {
+                        closeAllMenus();
+                        setTimeout(() => requestDeleteChat(chat.id), 120);
                       }}
                     >
                       <Trash2 size={16} />
@@ -567,7 +692,7 @@ export default function Home() {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(900px_circle_at_50%_0%,rgba(59,130,246,0.18),transparent_55%),radial-gradient(700px_circle_at_80%_20%,rgba(236,72,153,0.12),transparent_55%),radial-gradient(900px_circle_at_20%_80%,rgba(34,197,94,0.08),transparent_55%)]" />
 
       <div className="flex min-h-screen">
-        {/* Desktop sidebar (hidden on mobile) */}
+        {/* Desktop sidebar */}
         <aside
           className={`hidden md:flex border-r border-white/5 bg-white/[0.03] backdrop-blur-2xl flex-col transition-all duration-200 ${
             sidebarCollapsed ? "w-20 p-4" : "w-72 p-6"
@@ -592,12 +717,10 @@ export default function Home() {
         {/* Main */}
         <main className="flex-1 flex flex-col items-center px-3 sm:px-6 py-5 sm:py-10">
           <div className="w-full max-w-4xl flex-1">
-            {/* Chat panel */}
             <div className="h-full rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col">
               {/* Top bar */}
               <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/5">
                 <div className="flex items-center gap-3 min-w-0">
-                  {/* Mobile menu */}
                   <button
                     className="md:hidden h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
                     onClick={() => setMobileSidebarOpen(true)}
@@ -609,17 +732,14 @@ export default function Home() {
 
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-white/90">
-                      {activeChat?.messages.length
-                        ? activeChat.title
-                        : "HumanKindAI"}
+                      {activeChat?.messages.length ? activeChat.title : "HumanKindAI"}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Messages area */}
+              {/* Messages */}
               <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
-                {/* Empty state */}
                 {activeChat && activeChat.messages.length === 0 && (
                   <div className="h-full flex items-center justify-center">
                     <div className="max-w-md text-center">
@@ -630,27 +750,21 @@ export default function Home() {
                           className="h-full w-full object-contain"
                         />
                       </div>
-                      <h1 className="text-2xl font-semibold text-white/90">
-                        HumanKindAI
-                      </h1>
-                      <p className="mt-2 text-sm text-white/50">
-                        Start a conversation.
-                      </p>
+                      <h1 className="text-2xl font-semibold text-white/90">HumanKindAI</h1>
+                      <p className="mt-2 text-sm text-white/50">Start a conversation.</p>
 
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
-                        {[
-                          "Help me calm down",
-                          "Rewrite this kindly",
-                          "Plan my day with balance",
-                        ].map((t) => (
-                          <button
-                            key={t}
-                            onClick={() => setInput(t)}
-                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 transition"
-                          >
-                            {t}
-                          </button>
-                        ))}
+                        {["Help me calm down", "Rewrite this kindly", "Plan my day with balance"].map(
+                          (t) => (
+                            <button
+                              key={t}
+                              onClick={() => setInput(t)}
+                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 transition"
+                            >
+                              {t}
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
                   </div>
@@ -659,9 +773,7 @@ export default function Home() {
                 {activeChat?.messages.map((msg, index) => (
                   <div
                     key={index}
-                    className={`mb-4 flex ${
-                      msg.role === "user" ? "justify-end" : "justify-start"
-                    }`}
+                    className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
                       className={`max-w-[90%] sm:max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
@@ -675,16 +787,13 @@ export default function Home() {
                   </div>
                 ))}
 
-                {loading && (
-                  <div className="text-white/45 text-sm">Thinking…</div>
-                )}
-
+                {loading && <div className="text-white/45 text-sm">Thinking…</div>}
                 <div ref={messagesEndRef} />
               </div>
             </div>
           </div>
 
-          {/* Composer (fixed highlight alignment) */}
+          {/* Composer */}
           {activeChat && (
             <div className="w-full max-w-4xl mt-4 sm:mt-5">
               <div className="rounded-2xl border border-white/10 bg-[#0b1220]/70 backdrop-blur-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/40 focus-within:border-blue-400/30 transition-all duration-200 shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
@@ -703,7 +812,7 @@ export default function Home() {
                     placeholder="Write a message"
                   />
 
-                  {/* Mobile send button only */}
+                  {/* Mobile send only */}
                   <button
                     onClick={sendText}
                     disabled={loading || !input.trim()}
@@ -723,9 +832,7 @@ export default function Home() {
                   {["Summarize", "Make it kinder", "Give 3 options"].map((t) => (
                     <button
                       key={t}
-                      onClick={() =>
-                        setInput((prev) => (prev ? prev + " " + t : t))
-                      }
+                      onClick={() => setInput((prev) => (prev ? prev + " " + t : t))}
                       className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
                     >
                       {t}
@@ -747,12 +854,10 @@ export default function Home() {
 
         {/* Apps Modal */}
         {showApps && (
-          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220]/90 p-6 shadow-2xl">
               <h3 className="text-lg font-semibold mb-2">Apps</h3>
-              <p className="text-white/55 text-sm mb-5">
-                Future tools will appear here.
-              </p>
+              <p className="text-white/55 text-sm mb-5">Future tools will appear here.</p>
               <button
                 onClick={() => setShowApps(false)}
                 className="rounded-xl bg-blue-600 px-4 py-2 hover:bg-blue-500 transition"
@@ -766,7 +871,7 @@ export default function Home() {
         {/* Delete Modal */}
         {deleteTargetId && (
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
             onClick={() => setDeleteTargetId(null)}
           >
             <div
@@ -775,9 +880,7 @@ export default function Home() {
             >
               <div className="p-6">
                 <div className="flex items-start justify-between">
-                  <h3 className="text-lg font-semibold text-white/90">
-                    Delete chat?
-                  </h3>
+                  <h3 className="text-lg font-semibold text-white/90">Delete chat?</h3>
                   <button
                     onClick={() => setDeleteTargetId(null)}
                     className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition"
@@ -790,14 +893,11 @@ export default function Home() {
                 <p className="mt-3 text-sm text-white/60">
                   This will delete{" "}
                   <span className="font-semibold text-white/80">
-                    {chats.find((c) => c.id === deleteTargetId)?.title ??
-                      "this chat"}
+                    {chats.find((c) => c.id === deleteTargetId)?.title ?? "this chat"}
                   </span>
                   .
                 </p>
-                <p className="mt-2 text-xs text-white/35">
-                  This action can’t be undone.
-                </p>
+                <p className="mt-2 text-xs text-white/35">This action can’t be undone.</p>
               </div>
 
               <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
@@ -821,7 +921,7 @@ export default function Home() {
         {/* Rename Modal */}
         {renameTargetId && (
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
             onClick={() => setRenameTargetId(null)}
           >
             <div
@@ -830,9 +930,7 @@ export default function Home() {
             >
               <div className="p-6">
                 <div className="flex items-start justify-between">
-                  <h3 className="text-lg font-semibold text-white/90">
-                    Rename chat
-                  </h3>
+                  <h3 className="text-lg font-semibold text-white/90">Rename chat</h3>
                   <button
                     onClick={() => setRenameTargetId(null)}
                     className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition"
