@@ -62,8 +62,9 @@ export default function Home() {
   // Mobile drawer
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // 3-dot menu per chat row
-  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+  // Menus
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null); // desktop
+  const [mobileMenuFor, setMobileMenuFor] = useState<string | null>(null); // mobile
 
   // Custom modals
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -78,9 +79,12 @@ export default function Home() {
     [chats, activeChatId]
   );
 
-  // Close chat menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
-    const close = () => setOpenMenuFor(null);
+    const close = () => {
+      setOpenMenuFor(null);
+      setMobileMenuFor(null);
+    };
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
@@ -127,7 +131,8 @@ export default function Home() {
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
     setOpenMenuFor(null);
-    setMobileSidebarOpen(false); // close drawer on mobile
+    setMobileMenuFor(null);
+    setMobileSidebarOpen(false);
   };
 
   const sendText = async () => {
@@ -281,18 +286,52 @@ export default function Home() {
 
   const selectChat = (id: string) => {
     setActiveChatId(id);
-    setMobileSidebarOpen(false); // close drawer on mobile
+    setMobileSidebarOpen(false);
   };
 
-  // Sidebar content renderer (used by desktop + mobile drawer)
-  const SidebarContent = ({
-    isMobile,
-  }: {
-    isMobile?: boolean;
-  }) => (
+  const closeAllMenus = () => {
+    setOpenMenuFor(null);
+    setMobileMenuFor(null);
+  };
+
+  // Sidebar content renderer (desktop + mobile drawer)
+  const SidebarContent = ({ isMobile }: { isMobile?: boolean }) => (
     <>
-      {/* Brand row (expanded only) */}
-      {!sidebarCollapsed && !isMobile && (
+      {/* Mobile brand header */}
+      {isMobile ? (
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
+              <img
+                src="/logo.png"
+                alt="HumanKindAI"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="text-sm font-semibold text-white/90">
+              HumanKindAI
+            </div>
+          </div>
+
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+            aria-label="Close sidebar"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : sidebarCollapsed ? (
+        <div className="flex items-center justify-center mb-3">
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+            title="Expand sidebar"
+          >
+            <PanelLeft size={16} />
+          </button>
+        </div>
+      ) : (
         <div className="flex items-center gap-3 mb-6">
           <div className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
             <img
@@ -318,45 +357,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Mobile brand header */}
-      {isMobile && (
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-              <img
-                src="/logo.png"
-                alt="HumanKindAI"
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div className="text-sm font-semibold text-white/90">
-              HumanKindAI
-            </div>
-          </div>
-
-          <button
-            onClick={() => setMobileSidebarOpen(false)}
-            className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
-            aria-label="Close sidebar"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* Collapsed toggle (desktop collapsed) */}
-      {sidebarCollapsed && !isMobile && (
-        <div className="flex items-center justify-center mb-3">
-          <button
-            onClick={() => setSidebarCollapsed(false)}
-            className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
-            title="Expand sidebar"
-          >
-            <PanelLeft size={16} />
-          </button>
-        </div>
-      )}
-
       {/* New Chat */}
       <button
         onClick={createNewChat}
@@ -370,7 +370,7 @@ export default function Home() {
       </button>
 
       {/* Search (hidden on desktop collapsed) */}
-      {(!isMobile && !sidebarCollapsed) && (
+      {(isMobile || (!isMobile && !sidebarCollapsed)) && (
         <div className="mt-6">
           <div className="flex items-center gap-2 text-white/60 mb-2 text-sm">
             <Search size={16} />
@@ -406,7 +406,6 @@ export default function Home() {
           </button>
         </div>
       ) : (
-        // collapsed desktop icon-only actions
         <div className="mt-5 flex flex-col items-center gap-4">
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -426,18 +425,22 @@ export default function Home() {
         </div>
       )}
 
-      {/* Chat list label should be ABOVE chat list (not above New Chat) */}
+      {/* Chat list label (ABOVE chat list) */}
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
         <div className="mt-8 mb-3 text-xs uppercase tracking-wider text-white/40">
           Your chats
         </div>
       )}
 
-      {/* Chats list (hidden on desktop collapsed) */}
+      {/* Chats list */}
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
           {visibleChats.map((chat) => {
             const isActive = chat.id === activeChatId;
+
+            const menuOpen =
+              (!isMobile && openMenuFor === chat.id) ||
+              (isMobile && mobileMenuFor === chat.id);
 
             return (
               <div
@@ -456,23 +459,30 @@ export default function Home() {
                   {chat.title}
                 </button>
 
-                {/* dots only on direct hover (desktop only) */}
-                {!isMobile && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuFor((prev) => (prev === chat.id ? null : chat.id));
-                    }}
-                    className="mr-2 hidden group-hover:flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition"
-                    aria-label="Chat options"
-                    title="Options"
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
-                )}
+                {/* Desktop: hover. Mobile: always visible (no hover on mobile). */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isMobile) {
+                      setMobileMenuFor((prev) =>
+                        prev === chat.id ? null : chat.id
+                      );
+                    } else {
+                      setOpenMenuFor((prev) =>
+                        prev === chat.id ? null : chat.id
+                      );
+                    }
+                  }}
+                  className={`mr-2 h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition ${
+                    isMobile ? "flex" : "hidden group-hover:flex"
+                  }`}
+                  aria-label="Chat options"
+                  title="Options"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
 
-                {/* Mobile: simple long-press replacement (optional); for now keep menu off */}
-                {!isMobile && openMenuFor === chat.id && (
+                {menuOpen && (
                   <div
                     onClick={(e) => e.stopPropagation()}
                     className="absolute right-2 top-11 z-50 w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
@@ -480,7 +490,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        setOpenMenuFor(null);
+                        closeAllMenus();
                         alert("Share (coming soon)");
                       }}
                     >
@@ -491,7 +501,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        setOpenMenuFor(null);
+                        closeAllMenus();
                         alert("Start a group chat (coming soon)");
                       }}
                     >
@@ -502,7 +512,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        setOpenMenuFor(null);
+                        closeAllMenus();
                         requestRenameChat(chat.id);
                       }}
                     >
@@ -515,7 +525,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        setOpenMenuFor(null);
+                        closeAllMenus();
                         alert("Pin chat (coming soon)");
                       }}
                     >
@@ -526,7 +536,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        setOpenMenuFor(null);
+                        closeAllMenus();
                         alert("Archive (coming soon)");
                       }}
                     >
@@ -537,7 +547,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
                       onClick={() => {
-                        setOpenMenuFor(null);
+                        closeAllMenus();
                         requestDeleteChat(chat.id);
                       }}
                     >
@@ -698,14 +708,19 @@ export default function Home() {
                       placeholder="Write a message"
                     />
 
+                    {/* ✅ Minimalist send (different from before): pill icon, no boxy blue */}
                     <button
                       onClick={sendText}
                       disabled={loading || !input.trim()}
-                      className="h-[56px] w-[56px] rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/25 hover:bg-blue-500 hover:shadow-blue-500/30 disabled:opacity-50 disabled:hover:bg-blue-600 transition active:scale-[0.98] flex items-center justify-center"
+                      className={`h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
+                        input.trim()
+                          ? "bg-white/10 text-white hover:bg-white/15"
+                          : "bg-white/5 text-white/30"
+                      }`}
                       aria-label="Send"
                       title="Send"
                     >
-                      <SendHorizonal size={18} />
+                      <SendHorizonal size={18} strokeWidth={2} />
                     </button>
                   </div>
 
@@ -729,6 +744,14 @@ export default function Home() {
             </div>
           )}
         </main>
+
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleImageUpload}
+        />
 
         {/* Apps Modal */}
         {showApps && (
