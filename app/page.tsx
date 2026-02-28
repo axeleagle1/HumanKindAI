@@ -15,8 +15,7 @@ import {
   Trash2,
   X,
   SendHorizonal,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeft,
 } from "lucide-react";
 
 type Message = {
@@ -249,53 +248,88 @@ export default function Home() {
       <div className="flex min-h-screen">
         {/* Sidebar */}
         <aside
-          className={`relative border-r border-white/5 bg-white/[0.03] backdrop-blur-2xl flex flex-col transition-all duration-200 ${
-            sidebarCollapsed ? "w-16 p-4" : "w-72 p-6"
+          className={`border-r border-white/5 bg-white/[0.03] backdrop-blur-2xl flex flex-col transition-all duration-200 ${
+            sidebarCollapsed ? "w-20 p-4" : "w-72 p-6"
           }`}
         >
-          {/* Collapse button (arrow) */}
-          <button
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            className="absolute -right-3 top-6 z-40 h-7 w-7 rounded-full border border-white/10 bg-[#0b1220]/90 backdrop-blur flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition"
-            title={sidebarCollapsed ? "Show chats" : "Hide chats"}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight size={16} />
-            ) : (
-              <ChevronLeft size={16} />
-            )}
-          </button>
+          {/* Header row */}
+          {!sidebarCollapsed ? (
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm font-medium text-white/80">
+                Your chats <span className="text-white/40">›</span>
+              </div>
 
-          {/* Brand */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
-              <img
-                src="/logo.png"
-                alt="HumanKindAI Logo"
-                className="w-full h-full object-contain"
-              />
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Collapse sidebar"
+              >
+                <PanelLeft size={16} />
+              </button>
             </div>
+          ) : (
+            <div className="flex items-center justify-center mb-3">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Expand sidebar"
+              >
+                <PanelLeft size={16} />
+              </button>
+            </div>
+          )}
 
-            {!sidebarCollapsed && (
+          {/* Brand (hide logo in collapsed mode; keep minimal) */}
+          {!sidebarCollapsed && (
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
+                <img
+                  src="/logo.png"
+                  alt="HumanKindAI Logo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
               <div>
                 <h2 className="text-lg font-semibold text-white/90 leading-tight">
                   HumanKindAI
                 </h2>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* New Chat */}
           <button
             onClick={createNewChat}
-            className={`flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
-              sidebarCollapsed ? "h-11 px-0" : "px-4 py-2"
+            className={`flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
+              sidebarCollapsed ? "h-12 w-12 mx-auto" : "px-4 py-2"
             }`}
             title="New Chat"
           >
             <Plus size={18} />
             {!sidebarCollapsed && "New Chat"}
           </button>
+
+          {/* Collapsed actions */}
+          {sidebarCollapsed && (
+            <div className="mt-5 flex flex-col items-center gap-4">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Images"
+              >
+                <ImageIcon size={20} />
+              </button>
+
+              <button
+                onClick={() => setShowApps(true)}
+                className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                title="Apps"
+              >
+                <Grid size={20} />
+              </button>
+            </div>
+          )}
 
           {/* Search */}
           {!sidebarCollapsed && (
@@ -314,7 +348,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Quick actions */}
+          {/* Quick actions (expanded) */}
           {!sidebarCollapsed && (
             <div className="mt-6 flex gap-3 text-sm">
               <button
@@ -358,7 +392,6 @@ export default function Home() {
                         : "bg-white/0 border-transparent hover:bg-white/5 hover:border-white/10"
                     }`}
                   >
-                    {/* Chat button */}
                     <button
                       onClick={() => setActiveChatId(chat.id)}
                       className="flex-1 text-left px-3 py-2 text-sm truncate"
@@ -367,7 +400,7 @@ export default function Home() {
                       {chat.title}
                     </button>
 
-                    {/* 3 dots ONLY appears when hovering directly on the row */}
+                    {/* dots only on direct hover of row */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -382,7 +415,6 @@ export default function Home() {
                       <MoreHorizontal size={16} />
                     </button>
 
-                    {/* Dropdown */}
                     {openMenuFor === chat.id && (
                       <div
                         onClick={(e) => e.stopPropagation()}
@@ -462,26 +494,6 @@ export default function Home() {
               })}
             </div>
           )}
-
-          {/* Collapsed tool buttons */}
-          {sidebarCollapsed && (
-            <div className="mt-6 flex flex-col gap-3">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="h-11 w-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
-                title="Images"
-              >
-                <ImageIcon size={18} />
-              </button>
-              <button
-                onClick={() => setShowApps(true)}
-                className="h-11 w-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
-                title="Apps"
-              >
-                <Grid size={18} />
-              </button>
-            </div>
-          )}
         </aside>
 
         {/* Main */}
@@ -489,21 +501,11 @@ export default function Home() {
           <div className="w-full max-w-4xl flex-1">
             {/* Chat panel */}
             <div className="h-full rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.55)] overflow-hidden">
-              {/* Top bar */}
-              <div className="flex items-center px-6 py-4 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-                    <img
-                      src="/logo.png"
-                      alt="logo"
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                  <div className="leading-tight">
-                    <div className="text-sm text-white/90 font-medium">
-                      {activeChat?.title ?? "New Chat"}
-                    </div>
-                    <div className="text-xs text-white/40">Conversation</div>
+              {/* Top bar (NO logo, NO Conversation) */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-white/90">
+                    {activeChat?.title ?? "New Chat"}
                   </div>
                 </div>
               </div>
@@ -576,7 +578,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Composer (more premium) */}
+          {/* Composer (premium) */}
           {activeChat && (
             <div className="w-full max-w-4xl mt-5">
               <div className="rounded-2xl bg-[linear-gradient(90deg,rgba(59,130,246,0.35),rgba(236,72,153,0.22),rgba(34,197,94,0.12))] p-[1px] shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
@@ -608,17 +610,19 @@ export default function Home() {
                   </div>
 
                   <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
-                    {["Summarize", "Make it kinder", "Give 3 options"].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() =>
-                          setInput((prev) => (prev ? prev + " " + t : t))
-                        }
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
-                      >
-                        {t}
-                      </button>
-                    ))}
+                    {["Summarize", "Make it kinder", "Give 3 options"].map(
+                      (t) => (
+                        <button
+                          key={t}
+                          onClick={() =>
+                            setInput((prev) => (prev ? prev + " " + t : t))
+                          }
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
+                        >
+                          {t}
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -644,7 +648,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Delete Modal (nice, not browser confirm) */}
+        {/* Delete Modal */}
         {deleteTargetId && (
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
@@ -699,7 +703,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Rename Modal (consistent, premium) */}
+        {/* Rename Modal */}
         {renameTargetId && (
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
