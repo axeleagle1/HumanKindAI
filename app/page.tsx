@@ -62,9 +62,9 @@ export default function Home() {
   // Mobile drawer
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Menus
-  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null); // desktop
-  const [mobileMenuFor, setMobileMenuFor] = useState<string | null>(null); // mobile
+  // Menus (desktop + mobile)
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+  const [mobileMenuFor, setMobileMenuFor] = useState<string | null>(null);
 
   // Custom modals
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -79,12 +79,14 @@ export default function Home() {
     [chats, activeChatId]
   );
 
+  const closeAllMenus = () => {
+    setOpenMenuFor(null);
+    setMobileMenuFor(null);
+  };
+
   // Close menus when clicking outside
   useEffect(() => {
-    const close = () => {
-      setOpenMenuFor(null);
-      setMobileMenuFor(null);
-    };
+    const close = () => closeAllMenus();
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
@@ -130,8 +132,7 @@ export default function Home() {
     };
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
-    setOpenMenuFor(null);
-    setMobileMenuFor(null);
+    closeAllMenus();
     setMobileSidebarOpen(false);
   };
 
@@ -287,11 +288,6 @@ export default function Home() {
   const selectChat = (id: string) => {
     setActiveChatId(id);
     setMobileSidebarOpen(false);
-  };
-
-  const closeAllMenus = () => {
-    setOpenMenuFor(null);
-    setMobileMenuFor(null);
   };
 
   // Sidebar content renderer (desktop + mobile drawer)
@@ -688,57 +684,53 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Composer (premium) */}
+          {/* Composer (fixed highlight alignment) */}
           {activeChat && (
             <div className="w-full max-w-4xl mt-4 sm:mt-5">
-              <div className="rounded-2xl bg-[linear-gradient(90deg,rgba(59,130,246,0.35),rgba(236,72,153,0.22),rgba(34,197,94,0.12))] p-[1px] shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
-                <div className="rounded-2xl border border-white/10 bg-[#0b1220]/60 backdrop-blur-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/30">
-                  <div className="flex items-end gap-2">
-                    <textarea
-                      className="min-h-[56px] flex-1 resize-none bg-transparent px-3 py-3 text-white/90 placeholder:text-white/35 outline-none"
-                      rows={2}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          sendText();
-                        }
-                      }}
-                      placeholder="Write a message"
-                    />
+              <div className="rounded-2xl border border-white/10 bg-[#0b1220]/70 backdrop-blur-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/40 focus-within:border-blue-400/30 transition-all duration-200 shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    className="min-h-[56px] flex-1 resize-none bg-transparent px-3 py-3 text-white/90 placeholder:text-white/35 outline-none"
+                    rows={2}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendText();
+                      }
+                    }}
+                    placeholder="Write a message"
+                  />
 
-                    {/* ✅ Minimalist send (different from before): pill icon, no boxy blue */}
+                  {/* Mobile send button only */}
+                  <button
+                    onClick={sendText}
+                    disabled={loading || !input.trim()}
+                    className={`md:hidden h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
+                      input.trim()
+                        ? "bg-white/10 text-white hover:bg-white/15"
+                        : "bg-white/5 text-white/30"
+                    }`}
+                    aria-label="Send"
+                    title="Send"
+                  >
+                    <SendHorizonal size={18} strokeWidth={2} />
+                  </button>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
+                  {["Summarize", "Make it kinder", "Give 3 options"].map((t) => (
                     <button
-                      onClick={sendText}
-                      disabled={loading || !input.trim()}
-                      className={`h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
-                        input.trim()
-                          ? "bg-white/10 text-white hover:bg-white/15"
-                          : "bg-white/5 text-white/30"
-                      }`}
-                      aria-label="Send"
-                      title="Send"
+                      key={t}
+                      onClick={() =>
+                        setInput((prev) => (prev ? prev + " " + t : t))
+                      }
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
                     >
-                      <SendHorizonal size={18} strokeWidth={2} />
+                      {t}
                     </button>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
-                    {["Summarize", "Make it kinder", "Give 3 options"].map(
-                      (t) => (
-                        <button
-                          key={t}
-                          onClick={() =>
-                            setInput((prev) => (prev ? prev + " " + t : t))
-                          }
-                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
-                        >
-                          {t}
-                        </button>
-                      )
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
