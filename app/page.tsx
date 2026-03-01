@@ -23,6 +23,7 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   image?: string; // stored, but not rendered
+  quickReplies?: string[]; // assistant-only quick reply buttons
 };
 
 type Chat = {
@@ -159,13 +160,34 @@ export default function Home() {
     setMobileSidebarOpen(false);
   };
 
-  const sendText = async () => {
+  // ✅ Hide old quick replies (removes them from the last assistant message)
+  const stripQuickReplies = (messages: Message[]): Message[] => {
+    let lastAssistantIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") {
+        lastAssistantIndex = i;
+        break;
+      }
+    }
+    if (lastAssistantIndex === -1) return messages;
+
+    const m = messages[lastAssistantIndex];
+    if (!m.quickReplies || m.quickReplies.length === 0) return messages;
+
+    const next = messages.slice();
+    next[lastAssistantIndex] = { ...m, quickReplies: [] };
+    return next;
+  };
+
+  const sendText = async (override?: string) => {
     if (!activeChat || loading) return;
-    const messageToSend = input.trim();
+
+    const messageToSend = (override ?? input).trim();
     if (!messageToSend) return;
 
     const userMessage: Message = { role: "user", content: messageToSend };
 
+    // ✅ Important: remove quick replies from the last assistant message BEFORE sending
     setChats((prev) =>
       prev.map((chat) =>
         chat.id === activeChat.id
@@ -175,7 +197,7 @@ export default function Home() {
                 chat.messages.length === 0
                   ? makeTitle(messageToSend)
                   : chat.title,
-              messages: [...chat.messages, userMessage],
+              messages: [...stripQuickReplies(chat.messages), userMessage],
             }
           : chat
       )
@@ -196,6 +218,7 @@ export default function Home() {
       const aiMessage: Message = {
         role: "assistant",
         content: data.reply ?? "No response.",
+        quickReplies: Array.isArray(data.quickReplies) ? data.quickReplies : [],
       };
 
       setChats((prev) =>
@@ -222,6 +245,11 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const sendQuickReply = (text: string) => {
+    // clicking a quick reply should also hide old quick replies automatically (handled in sendText)
+    sendText(text);
   };
 
   // Store image as hidden attachment; do not display the photo
@@ -525,7 +553,7 @@ export default function Home() {
                   <MoreHorizontal size={16} />
                 </button>
 
-                {/* Desktop menu (kept as-is) */}
+                {/* Desktop menu */}
                 {desktopMenuOpen && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -601,7 +629,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Mobile menu is rendered as FIXED (smart anchored) */}
+                {/* Mobile menu */}
                 {mobileMenuOpen && mobileMenu && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -775,14 +803,34 @@ export default function Home() {
                     key={index}
                     className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <div
-                      className={`max-w-[90%] sm:max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
-                        msg.role === "user"
-                          ? "bg-gradient-to-br from-blue-600/30 to-blue-500/10 border-blue-400/20 text-white/90 shadow-blue-500/10"
-                          : "bg-white/[0.055] border-white/10 text-white/85"
-                      }`}
-                    >
-                      {msg.content}
+                    <div className="max-w-[90%] sm:max-w-[78%]">
+                      <div
+                        className={`rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
+                          msg.role === "user"
+                            ? "bg-gradient-to-br from-blue-600/30 to-blue-500/10 border-blue-400/20 text-white/90 shadow-blue-500/10"
+                            : "bg-white/[0.055] border-white/10 text-white/85"
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+
+                      {/* Quick replies (assistant only) */}
+                      {msg.role === "assistant" &&
+                        Array.isArray(msg.quickReplies) &&
+                        msg.quickReplies.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {msg.quickReplies.map((t) => (
+                              <button
+                                key={`${index}-${t}`}
+                                onClick={() => sendQuickReply(t)}
+                                disabled={loading}
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 transition disabled:opacity-50"
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                     </div>
                   </div>
                 ))}
@@ -814,7 +862,7 @@ export default function Home() {
 
                   {/* Mobile send only */}
                   <button
-                    onClick={sendText}
+                    onClick={() => sendText()}
                     disabled={loading || !input.trim()}
                     className={`md:hidden h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
                       input.trim()

@@ -5,39 +5,28 @@ export async function POST(req: Request) {
   try {
     const { message } = await req.json();
 
-    // Validate input
     if (!message || typeof message !== "string") {
-      return Response.json(
-        { reply: "Message is required." },
-        { status: 400 }
-      );
+      return Response.json({ reply: "Message is required." }, { status: 400 });
     }
 
-    // Optional delay so it feels natural (typing effect)
-    await new Promise((r) => setTimeout(r, 500));
+    // optional: small delay
+    await new Promise((r) => setTimeout(r, 350));
 
-    // Detect emotional mode (free keyword-based version)
     const { mode, reason } = detectModeFree(message);
+    const payload = respondFree(mode, message);
 
-    // Generate response based on detected mode
-    const reply = respondFree(mode, message);
-
-    // Helpful for debugging in terminal
     console.log("MODE:", mode, "| REASON:", reason);
 
-    // Return response (keeps your frontend working)
+    // Your frontend already reads `reply` — keep it.
+    // Add quickReplies for the UX buttons.
     return Response.json({
-      reply,
+      reply: payload.reply,
+      quickReplies: payload.quickReplies,
       mode,
       reason,
     });
-
   } catch (error) {
     console.error("Chat API Error:", error);
-
-    return Response.json(
-      { reply: "Something went wrong." },
-      { status: 500 }
-    );
+    return Response.json({ reply: "Something went wrong." }, { status: 500 });
   }
 }
