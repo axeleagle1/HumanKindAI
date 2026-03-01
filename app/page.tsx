@@ -17,13 +17,16 @@ import {
   SendHorizonal,
   PanelLeft,
   Menu,
+  Check,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 
 type Tier = "lite" | "pro";
 
-const TIER_LABEL: Record<Tier, string> = {
+const MODEL_LABEL: Record<Tier, string> = {
   lite: "KinderAI Lite 3.6",
-  pro: "KinderAI Pro (Locked)",
+  pro: "KinderAI Pro 4.1",
 };
 
 type Message = {
@@ -31,7 +34,8 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   image?: string; // stored, but not rendered
-  quickReplies?: string[]; // shown under assistant message (and hidden after click)
+  quickReplies?: string[];
+  statusLine?: string;
 };
 
 type Chat = {
@@ -63,28 +67,41 @@ const makeTitle = (text: string) => {
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
+const cleanQuickReplyLabel = (t: string) => t.replace(/^\[MODE:[A-Z]+\]\s*/, "");
+
+const pickStatusLine = () => {
+  const options = [
+    "Ready when you are.",
+    "No rush. Take your time.",
+    "We can keep it simple.",
+    "Waiting for your next input.",
+  ];
+  return options[Math.floor(Math.random() * options.length)];
+};
+
 export default function Home() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
+  // Model UI
   const [tier, setTier] = useState<Tier>("lite");
+  const [modelMenuOpen, setModelMenuOpen] = useState(false); // desktop
+  const [modelSheetOpen, setModelSheetOpen] = useState(false); // mobile
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
+  // Chat UI
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showApps, setShowApps] = useState(false);
 
-  // Desktop sidebar collapse
+  // Sidebar
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Mobile drawer
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Menus (desktop)
+  // Menus (chat options)
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
-
-  // Mobile menu (smart anchored)
   const [mobileMenu, setMobileMenu] = useState<null | {
     chatId: string;
     top: number;
@@ -92,41 +109,64 @@ export default function Home() {
     openUp: boolean;
   }>(null);
 
-  // Custom modals
+  // Modals
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
 
   const activeChat = useMemo(
     () => chats.find((c) => c.id === activeChatId),
     [chats, activeChatId]
   );
 
-  const closeAllMenus = () => {
+  const closeAllChatMenus = () => {
     setOpenMenuFor(null);
     setMobileMenu(null);
   };
 
-  // Close menus when clicking outside
+  // Close chat menus when clicking outside
   useEffect(() => {
-    const close = () => closeAllMenus();
+    const close = () => closeAllChatMenus();
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
 
-  // Close mobile anchored menu on scroll/resize (prevents floating weirdness)
+  // Close mobile chat menu on scroll/resize
   useEffect(() => {
-    const close = () => {
-      setMobileMenu(null);
-    };
+    const close = () => setMobileMenu(null);
     window.addEventListener("resize", close);
     window.addEventListener("scroll", close, true);
     return () => {
       window.removeEventListener("resize", close);
       window.removeEventListener("scroll", close, true);
+    };
+  }, []);
+
+  // Close model menu on outside click + ESC
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!modelMenuRef.current) return;
+      if (!modelMenuRef.current.contains(e.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setModelMenuOpen(false);
+        setModelSheetOpen(false);
+        setUpgradeOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
     };
   }, []);
 
@@ -141,10 +181,9 @@ export default function Home() {
     localStorage.setItem("humankindai-tier", tier);
   }, [tier]);
 
-  // Load chats (ALWAYS create a first chat if none exist, including saved "[]")
+  // Load chats (always ensure one exists)
   useEffect(() => {
     const saved = localStorage.getItem("humankindai-chats");
-
     if (saved) {
       const parsed: Chat[] = JSON.parse(saved);
       if (parsed.length > 0) {
@@ -153,13 +192,7 @@ export default function Home() {
         return;
       }
     }
-
-    const firstChat: Chat = {
-      id: Date.now().toString(),
-      title: "Untitled",
-      messages: [],
-    };
-
+    const firstChat: Chat = { id: Date.now().toString(), title: "Untitled", messages: [] };
     setChats([firstChat]);
     setActiveChatId(firstChat.id);
   }, []);
@@ -169,41 +202,44 @@ export default function Home() {
     localStorage.setItem("humankindai-chats", JSON.stringify(chats));
   }, [chats]);
 
-  // Auto-scroll
+  // Auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages, loading]);
 
   const createNewChat = () => {
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      title: "Untitled",
-      messages: [],
-    };
+    const newChat: Chat = { id: Date.now().toString(), title: "Untitled", messages: [] };
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
-    closeAllMenus();
+    closeAllChatMenus();
     setMobileSidebarOpen(false);
+  };
+
+  const hideQuickRepliesForMessage = (chatId: string, messageId: string) => {
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        return {
+          ...c,
+          messages: c.messages.map((m) => (m.id === messageId ? { ...m, quickReplies: [] } : m)),
+        };
+      })
+    );
   };
 
   const sendMessage = async (text: string) => {
     if (!activeChat || loading) return;
-
     const messageToSend = (text ?? "").trim();
     if (!messageToSend) return;
 
     const userMessage: Message = { id: newId(), role: "user", content: messageToSend };
 
-    // append user message
     setChats((prev) =>
       prev.map((chat) =>
         chat.id === activeChat.id
           ? {
               ...chat,
-              title:
-                chat.messages.length === 0
-                  ? makeTitle(messageToSend)
-                  : chat.title,
+              title: chat.messages.length === 0 ? makeTitle(messageToSend) : chat.title,
               messages: [...chat.messages, userMessage],
             }
           : chat
@@ -227,32 +263,26 @@ export default function Home() {
         role: "assistant",
         content: data.reply ?? "No response.",
         quickReplies: Array.isArray(data.quickReplies) ? data.quickReplies : [],
+        statusLine: pickStatusLine(),
       };
 
       setChats((prev) =>
         prev.map((chat) =>
-          chat.id === activeChat.id
-            ? { ...chat, messages: [...chat.messages, aiMessage] }
-            : chat
+          chat.id === activeChat.id ? { ...chat, messages: [...chat.messages, aiMessage] } : chat
         )
       );
-    } catch {
+    } catch (e) {
+      const aiMessage: Message = {
+        id: newId(),
+        role: "assistant",
+        content: "Something went wrong.",
+        quickReplies: ["Try again", "Start over", "[MODE:GROUND] Calm down"],
+        statusLine: "Network issue. Try again when ready.",
+      };
+
       setChats((prev) =>
         prev.map((chat) =>
-          chat.id === activeChat.id
-            ? {
-                ...chat,
-                messages: [
-                  ...chat.messages,
-                  {
-                    id: newId(),
-                    role: "assistant",
-                    content: "Something went wrong.",
-                    quickReplies: ["Try again", "Start over", "I need calm"],
-                  },
-                ],
-              }
-            : chat
+          chat.id === activeChat.id ? { ...chat, messages: [...chat.messages, aiMessage] } : chat
         )
       );
     } finally {
@@ -264,21 +294,6 @@ export default function Home() {
     await sendMessage(input);
   };
 
-  const hideQuickRepliesForMessage = (chatId: string, messageId: string) => {
-    setChats((prev) =>
-      prev.map((c) => {
-        if (c.id !== chatId) return c;
-        return {
-          ...c,
-          messages: c.messages.map((m) =>
-            m.id === messageId ? { ...m, quickReplies: [] } : m
-          ),
-        };
-      })
-    );
-  };
-
-  // Store image as hidden attachment; do not display the photo
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeChat) return;
@@ -314,16 +329,11 @@ export default function Home() {
     if (!renameTargetId) return;
     const next = renameValue.trim();
     if (!next) return;
-
-    setChats((prev) =>
-      prev.map((c) => (c.id === renameTargetId ? { ...c, title: next } : c))
-    );
+    setChats((prev) => prev.map((c) => (c.id === renameTargetId ? { ...c, title: next } : c)));
     setRenameTargetId(null);
   };
 
-  const requestDeleteChat = (chatId: string) => {
-    setDeleteTargetId(chatId);
-  };
+  const requestDeleteChat = (chatId: string) => setDeleteTargetId(chatId);
 
   const confirmDeleteChat = () => {
     if (!deleteTargetId) return;
@@ -334,16 +344,11 @@ export default function Home() {
     if (activeChatId === deleteTargetId) {
       if (remaining.length > 0) setActiveChatId(remaining[0].id);
       else {
-        const fresh: Chat = {
-          id: Date.now().toString(),
-          title: "Untitled",
-          messages: [],
-        };
+        const fresh: Chat = { id: Date.now().toString(), title: "Untitled", messages: [] };
         setChats([fresh]);
         setActiveChatId(fresh.id);
       }
     }
-
     setDeleteTargetId(null);
   };
 
@@ -357,7 +362,6 @@ export default function Home() {
     });
   }, [chats, searchQuery]);
 
-  // Premium behavior: only show chats that have at least 1 message
   const visibleChats = useMemo(() => {
     const base = searchQuery ? filteredChats : chats;
     return base.filter((c) => c.messages.length > 0);
@@ -370,21 +374,12 @@ export default function Home() {
 
   const openMobileMenu = (chatId: string, buttonEl: HTMLElement) => {
     const rect = buttonEl.getBoundingClientRect();
-
-    // Match Tailwind w-56
     const MENU_W = 224;
-    // Approx height for your menu (6 items + dividers)
     const MENU_H = 310;
     const PAD = 10;
-
     const openUp = rect.bottom + MENU_H + PAD > window.innerHeight;
 
-    const left = clamp(
-      rect.right - MENU_W,
-      PAD,
-      window.innerWidth - MENU_W - PAD
-    );
-
+    const left = clamp(rect.right - MENU_W, PAD, window.innerWidth - MENU_W - PAD);
     const top = openUp ? rect.top - MENU_H - 8 : rect.bottom + 8;
 
     setMobileMenu({
@@ -395,23 +390,15 @@ export default function Home() {
     });
   };
 
-  // Sidebar content renderer (desktop + mobile drawer)
   const SidebarContent = ({ isMobile }: { isMobile?: boolean }) => (
     <>
-      {/* Mobile brand header */}
       {isMobile ? (
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-              <img
-                src="/logo.png"
-                alt="HumanKindAI"
-                className="w-full h-full object-contain"
-              />
+              <img src="/logo.png" alt="HumanKindAI" className="w-full h-full object-contain" />
             </div>
-            <div className="text-sm font-semibold text-white/90">
-              HumanKindAI
-            </div>
+            <div className="text-sm font-semibold text-white/90">HumanKindAI</div>
           </div>
 
           <button
@@ -435,17 +422,11 @@ export default function Home() {
       ) : (
         <div className="flex items-center gap-3 mb-6">
           <div className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-lg overflow-hidden">
-            <img
-              src="/logo.png"
-              alt="HumanKindAI Logo"
-              className="w-full h-full object-contain"
-            />
+            <img src="/logo.png" alt="HumanKindAI Logo" className="w-full h-full object-contain" />
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold text-white/90 leading-tight">
-              HumanKindAI
-            </h2>
+            <h2 className="text-lg font-semibold text-white/90 leading-tight">HumanKindAI</h2>
           </div>
 
           <button
@@ -458,7 +439,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* New Chat */}
+      {/* New chat */}
       <button
         onClick={createNewChat}
         className={`flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
@@ -470,7 +451,6 @@ export default function Home() {
         {(isMobile || (!isMobile && !sidebarCollapsed)) && "New Chat"}
       </button>
 
-      {/* Search (hidden on desktop collapsed) */}
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
         <div className="mt-6">
           <div className="flex items-center gap-2 text-white/60 mb-2 text-sm">
@@ -487,7 +467,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Quick actions */}
       {isMobile || (!isMobile && !sidebarCollapsed) ? (
         <div className="mt-6 flex gap-3 text-sm">
           <button
@@ -526,19 +505,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Chat list label */}
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
-        <div className="mt-8 mb-3 text-xs uppercase tracking-wider text-white/40">
-          Your chats
-        </div>
+        <div className="mt-8 mb-3 text-xs uppercase tracking-wider text-white/40">Your chats</div>
       )}
 
-      {/* Chats list */}
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
           {visibleChats.map((chat) => {
             const isActive = chat.id === activeChatId;
-
             const desktopMenuOpen = !isMobile && openMenuFor === chat.id;
             const mobileMenuOpen = !!isMobile && mobileMenu?.chatId === chat.id;
 
@@ -559,7 +533,6 @@ export default function Home() {
                   {chat.title}
                 </button>
 
-                {/* Desktop: hover. Mobile: always visible */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -580,7 +553,6 @@ export default function Home() {
                   <MoreHorizontal size={16} />
                 </button>
 
-                {/* Desktop menu */}
                 {desktopMenuOpen && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -589,7 +561,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Share (coming soon)");
                       }}
                     >
@@ -600,7 +572,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Start a group chat (coming soon)");
                       }}
                     >
@@ -611,7 +583,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         requestRenameChat(chat.id);
                       }}
                     >
@@ -624,7 +596,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Pin chat (coming soon)");
                       }}
                     >
@@ -635,7 +607,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Archive (coming soon)");
                       }}
                     >
@@ -646,7 +618,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         setTimeout(() => requestDeleteChat(chat.id), 120);
                       }}
                     >
@@ -656,7 +628,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Mobile menu (fixed) */}
                 {mobileMenuOpen && mobileMenu && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -666,7 +637,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Share (coming soon)");
                       }}
                     >
@@ -677,7 +648,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Start a group chat (coming soon)");
                       }}
                     >
@@ -688,7 +659,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         requestRenameChat(chat.id);
                       }}
                     >
@@ -701,7 +672,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Pin chat (coming soon)");
                       }}
                     >
@@ -712,7 +683,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         alert("Archive (coming soon)");
                       }}
                     >
@@ -723,7 +694,7 @@ export default function Home() {
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
                       onClick={() => {
-                        closeAllMenus();
+                        closeAllChatMenus();
                         setTimeout(() => requestDeleteChat(chat.id), 120);
                       }}
                     >
@@ -785,30 +756,86 @@ export default function Home() {
                     <Menu size={18} />
                   </button>
 
-                  {/* Manus-like model badge + dropdown */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80">
-                      <span className="font-semibold">{TIER_LABEL[tier]}</span>
-                    </div>
-
-                    <select
-                      value={tier}
-                      onChange={(e) => {
-                        const next = e.target.value as Tier;
-                        if (next === "pro") {
-                          alert("Pro is locked for now. You’re currently on Lite.");
-                          setTier("lite");
-                          return;
-                        }
-                        setTier(next);
-                      }}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 outline-none focus:ring-2 focus:ring-blue-500/30"
-                      aria-label="Select tier"
-                      title="Select tier"
+                  {/* Model selector */}
+                  <div className="relative" ref={modelMenuRef}>
+                    {/* Desktop */}
+                    <button
+                      type="button"
+                      onClick={() => setModelMenuOpen((v) => !v)}
+                      className="hidden md:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/85 hover:bg-white/10 transition"
+                      aria-label="Select model"
+                      title="Select model"
                     >
-                      <option value="lite">Lite</option>
-                      <option value="pro">Pro (Locked)</option>
-                    </select>
+                      <span className="font-semibold">{MODEL_LABEL[tier]}</span>
+                      <span className="text-white/50">▾</span>
+                    </button>
+
+                    {/* Mobile */}
+                    <button
+                      type="button"
+                      onClick={() => setModelSheetOpen(true)}
+                      className="md:hidden flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/85 hover:bg-white/10 transition"
+                      aria-label="Select model"
+                      title="Select model"
+                    >
+                      <span className="font-semibold">{MODEL_LABEL[tier]}</span>
+                      <span className="text-white/50">▾</span>
+                    </button>
+
+                    {/* Desktop dropdown */}
+                    {modelMenuOpen && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="hidden md:block absolute left-0 top-10 z-[500] w-[300px] rounded-2xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+                      >
+                        <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-white/40">
+                          Model
+                        </div>
+
+                        <button
+                          className="w-full flex items-center justify-between px-3 py-3 text-sm text-white/85 hover:bg-white/5 transition"
+                          onClick={() => {
+                            setTier("lite");
+                            setModelMenuOpen(false);
+                          }}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">{MODEL_LABEL.lite}</span>
+                            <span className="text-xs text-white/45">Free • Calm-first replies</span>
+                          </div>
+                          {tier === "lite" && <Check size={16} className="text-white/70" />}
+                        </button>
+
+                        <button
+                          className="w-full flex items-center justify-between px-3 py-3 text-sm text-white/75 hover:bg-white/5 transition"
+                          onClick={() => {
+                            setModelMenuOpen(false);
+                            setUpgradeOpen(true);
+                          }}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">{MODEL_LABEL.pro}</span>
+                            <span className="text-xs text-white/45">
+                              Locked • Smarter, more contextual
+                            </span>
+                          </div>
+                          <Lock size={16} className="text-white/45" />
+                        </button>
+
+                        <div className="h-px bg-white/10" />
+
+                        <button
+                          className="w-full px-3 py-3 text-sm text-white/90 hover:bg-white/5 transition flex items-center gap-2"
+                          onClick={() => {
+                            setModelMenuOpen(false);
+                            setUpgradeOpen(true);
+                          }}
+                        >
+                          <Sparkles size={16} className="text-white/80" />
+                          Upgrade to Pro
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -829,10 +856,9 @@ export default function Home() {
                           className="h-full w-full object-contain"
                         />
                       </div>
-
                       <h1 className="text-2xl font-semibold text-white/90">HumanKindAI</h1>
                       <p className="mt-2 text-sm text-white/50">
-                        Start a conversation. Choose a direction.
+                        Choose a direction. I’ll guide it step by step.
                       </p>
 
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
@@ -847,7 +873,7 @@ export default function Home() {
                             onClick={() => setInput(t)}
                             className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 transition"
                           >
-                            {t.replace(/^\[MODE:[A-Z]+\]\s*/, "")}
+                            {cleanQuickReplyLabel(t)}
                           </button>
                         ))}
                       </div>
@@ -855,11 +881,9 @@ export default function Home() {
                   </div>
                 )}
 
-                {activeChat?.messages.map((msg, index) => (
+                {activeChat?.messages.map((msg) => (
                   <div key={msg.id} className="mb-4">
-                    <div
-                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
+                    <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div
                         className={`max-w-[90%] sm:max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
                           msg.role === "user"
@@ -871,27 +895,25 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Quick replies under assistant message */}
+                    {msg.role === "assistant" && msg.statusLine && (
+                      <div className="mt-1 ml-2 text-[11px] text-white/35">{msg.statusLine}</div>
+                    )}
+
                     {msg.role === "assistant" && msg.quickReplies && msg.quickReplies.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {msg.quickReplies.map((qr) => {
-                          const label = qr.replace(/^\[MODE:[A-Z]+\]\s*/, "");
-                          return (
-                            <button
-                              key={`${msg.id}-${qr}`}
-                              onClick={() => {
-                                if (!activeChat) return;
-                                // Hide old buttons so chat stays clean
-                                hideQuickRepliesForMessage(activeChat.id, msg.id);
-                                // Send quick reply as user message
-                                sendMessage(qr);
-                              }}
-                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 transition"
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
+                        {msg.quickReplies.map((qr) => (
+                          <button
+                            key={`${msg.id}-${qr}`}
+                            onClick={() => {
+                              if (!activeChat) return;
+                              hideQuickRepliesForMessage(activeChat.id, msg.id);
+                              sendMessage(qr);
+                            }}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 transition"
+                          >
+                            {cleanQuickReplyLabel(qr)}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -922,7 +944,6 @@ export default function Home() {
                     placeholder="Write a message"
                   />
 
-                  {/* Mobile send only */}
                   <button
                     onClick={sendText}
                     disabled={loading || !input.trim()}
@@ -938,7 +959,6 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* Optional composer helper chips */}
                 <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
                   {[
                     "[MODE:GROUND] Calm down",
@@ -951,7 +971,7 @@ export default function Home() {
                       onClick={() => setInput((prev) => (prev ? prev + " " + t : t))}
                       className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
                     >
-                      {t.replace(/^\[MODE:[A-Z]+\]\s*/, "")}
+                      {cleanQuickReplyLabel(t)}
                     </button>
                   ))}
                 </div>
@@ -984,7 +1004,147 @@ export default function Home() {
           </div>
         )}
 
-        {/* Delete Modal */}
+        {/* Mobile model sheet */}
+        {modelSheetOpen && (
+          <div className="fixed inset-0 z-[999] md:hidden">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setModelSheetOpen(false)}
+            />
+            <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl border-t border-white/10 bg-[#0b1220]/95 backdrop-blur-2xl p-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-white/90">Select model</div>
+                <button
+                  onClick={() => setModelSheetOpen(false)}
+                  className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition"
+                  aria-label="Close"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <button
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left hover:bg-white/10 transition"
+                  onClick={() => {
+                    setTier("lite");
+                    setModelSheetOpen(false);
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-white/90">{MODEL_LABEL.lite}</div>
+                      <div className="text-xs text-white/45 mt-0.5">Free • Calm-first replies</div>
+                    </div>
+                    {tier === "lite" && <div className="text-white/70">✓</div>}
+                  </div>
+                </button>
+
+                <button
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left hover:bg-white/10 transition"
+                  onClick={() => {
+                    setModelSheetOpen(false);
+                    setUpgradeOpen(true);
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-white/80">
+                        {MODEL_LABEL.pro} <span className="text-white/40">• Locked</span>
+                      </div>
+                      <div className="text-xs text-white/45 mt-0.5">
+                        Smarter responses + more context
+                      </div>
+                    </div>
+                    <div className="text-white/45">🔒</div>
+                  </div>
+                </button>
+
+                <button
+                  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition"
+                  onClick={() => {
+                    setModelSheetOpen(false);
+                    setUpgradeOpen(true);
+                  }}
+                >
+                  Upgrade to Pro
+                </button>
+              </div>
+
+              <div className="mt-3 text-[11px] text-white/35">
+                Lite is steady & safe. Pro adds smarter, more contextual replies.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upgrade modal */}
+        {upgradeOpen && (
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            onClick={() => setUpgradeOpen(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220]/95 shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white/90 flex items-center gap-2">
+                      <Sparkles size={18} className="text-white/80" />
+                      Upgrade to Pro
+                    </h3>
+                    <p className="mt-2 text-sm text-white/55">
+                      Unlock more accurate responses, better context, and less repetition.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setUpgradeOpen(false)}
+                    className="h-9 w-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition"
+                    aria-label="Close"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm font-semibold text-white/85">{MODEL_LABEL.pro}</div>
+                  <ul className="mt-2 text-sm text-white/60 space-y-1">
+                    <li>• More contextual replies</li>
+                    <li>• Better emotional accuracy</li>
+                    <li>• Cleaner “what to do next” guidance</li>
+                  </ul>
+                </div>
+
+                <div className="mt-3 text-xs text-white/35">
+                  Payments aren’t enabled yet — this is UI-ready for later.
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+                <button
+                  onClick={() => setUpgradeOpen(false)}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10 transition"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setUpgradeOpen(false);
+                    alert("Upgrade flow coming soon.");
+                  }}
+                  className="rounded-full bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500 transition"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete modal */}
         {deleteTargetId && (
           <div
             className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
@@ -1034,7 +1194,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Rename Modal */}
+        {/* Rename modal */}
         {renameTargetId && (
           <div
             className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
