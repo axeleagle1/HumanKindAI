@@ -19,11 +19,19 @@ import {
   Menu,
 } from "lucide-react";
 
+type Tier = "lite" | "pro";
+
+const TIER_LABEL: Record<Tier, string> = {
+  lite: "KinderAI Lite 3.6",
+  pro: "KinderAI Pro (Locked)",
+};
+
 type Message = {
+  id: string;
   role: "user" | "assistant";
   content: string;
   image?: string; // stored, but not rendered
-  quickReplies?: string[]; // assistant-only quick reply buttons
+  quickReplies?: string[]; // shown under assistant message (and hidden after click)
 };
 
 type Chat = {
@@ -31,6 +39,11 @@ type Chat = {
   title: string;
   messages: Message[];
 };
+
+const newId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const makeTitle = (text: string) => {
   const cleaned = text
@@ -53,6 +66,8 @@ const clamp = (n: number, min: number, max: number) =>
 export default function Home() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+
+  const [tier, setTier] = useState<Tier>("lite");
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -115,6 +130,17 @@ export default function Home() {
     };
   }, []);
 
+  // Load tier
+  useEffect(() => {
+    const savedTier = localStorage.getItem("humankindai-tier") as Tier | null;
+    if (savedTier === "lite" || savedTier === "pro") setTier(savedTier);
+  }, []);
+
+  // Save tier
+  useEffect(() => {
+    localStorage.setItem("humankindai-tier", tier);
+  }, [tier]);
+
   // Load chats (ALWAYS create a first chat if none exist, including saved "[]")
   useEffect(() => {
     const saved = localStorage.getItem("humankindai-chats");
@@ -160,34 +186,15 @@ export default function Home() {
     setMobileSidebarOpen(false);
   };
 
-  // ✅ Hide old quick replies (removes them from the last assistant message)
-  const stripQuickReplies = (messages: Message[]): Message[] => {
-    let lastAssistantIndex = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "assistant") {
-        lastAssistantIndex = i;
-        break;
-      }
-    }
-    if (lastAssistantIndex === -1) return messages;
-
-    const m = messages[lastAssistantIndex];
-    if (!m.quickReplies || m.quickReplies.length === 0) return messages;
-
-    const next = messages.slice();
-    next[lastAssistantIndex] = { ...m, quickReplies: [] };
-    return next;
-  };
-
-  const sendText = async (override?: string) => {
+  const sendMessage = async (text: string) => {
     if (!activeChat || loading) return;
 
-    const messageToSend = (override ?? input).trim();
+    const messageToSend = (text ?? "").trim();
     if (!messageToSend) return;
 
-    const userMessage: Message = { role: "user", content: messageToSend };
+    const userMessage: Message = { id: newId(), role: "user", content: messageToSend };
 
-    // ✅ Important: remove quick replies from the last assistant message BEFORE sending
+    // append user message
     setChats((prev) =>
       prev.map((chat) =>
         chat.id === activeChat.id
@@ -197,7 +204,7 @@ export default function Home() {
                 chat.messages.length === 0
                   ? makeTitle(messageToSend)
                   : chat.title,
-              messages: [...stripQuickReplies(chat.messages), userMessage],
+              messages: [...chat.messages, userMessage],
             }
           : chat
       )
@@ -210,12 +217,13 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageToSend }),
+        body: JSON.stringify({ message: messageToSend, tier }),
       });
 
       const data = await res.json();
 
       const aiMessage: Message = {
+        id: newId(),
         role: "assistant",
         content: data.reply ?? "No response.",
         quickReplies: Array.isArray(data.quickReplies) ? data.quickReplies : [],
@@ -236,7 +244,12 @@ export default function Home() {
                 ...chat,
                 messages: [
                   ...chat.messages,
-                  { role: "assistant", content: "Something went wrong." },
+                  {
+                    id: newId(),
+                    role: "assistant",
+                    content: "Something went wrong.",
+                    quickReplies: ["Try again", "Start over", "I need calm"],
+                  },
                 ],
               }
             : chat
@@ -247,9 +260,22 @@ export default function Home() {
     }
   };
 
-  const sendQuickReply = (text: string) => {
-    // clicking a quick reply should also hide old quick replies automatically (handled in sendText)
-    sendText(text);
+  const sendText = async () => {
+    await sendMessage(input);
+  };
+
+  const hideQuickRepliesForMessage = (chatId: string, messageId: string) => {
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        return {
+          ...c,
+          messages: c.messages.map((m) =>
+            m.id === messageId ? { ...m, quickReplies: [] } : m
+          ),
+        };
+      })
+    );
   };
 
   // Store image as hidden attachment; do not display the photo
@@ -260,6 +286,7 @@ export default function Home() {
     const reader = new FileReader();
     reader.onload = () => {
       const imageMessage: Message = {
+        id: newId(),
         role: "user",
         content: "📎 Image attached",
         image: reader.result as string,
@@ -629,7 +656,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Mobile menu */}
+                {/* Mobile menu (fixed) */}
                 {mobileMenuOpen && mobileMenu && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -758,11 +785,35 @@ export default function Home() {
                     <Menu size={18} />
                   </button>
 
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-white/90">
-                      {activeChat?.messages.length ? activeChat.title : "HumanKindAI"}
+                  {/* Manus-like model badge + dropdown */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80">
+                      <span className="font-semibold">{TIER_LABEL[tier]}</span>
                     </div>
+
+                    <select
+                      value={tier}
+                      onChange={(e) => {
+                        const next = e.target.value as Tier;
+                        if (next === "pro") {
+                          alert("Pro is locked for now. You’re currently on Lite.");
+                          setTier("lite");
+                          return;
+                        }
+                        setTier(next);
+                      }}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 outline-none focus:ring-2 focus:ring-blue-500/30"
+                      aria-label="Select tier"
+                      title="Select tier"
+                    >
+                      <option value="lite">Lite</option>
+                      <option value="pro">Pro (Locked)</option>
+                    </select>
                   </div>
+                </div>
+
+                <div className="text-xs text-white/35 hidden sm:block">
+                  {activeChat?.messages.length ? activeChat.title : "HumanKindAI"}
                 </div>
               </div>
 
@@ -778,34 +829,39 @@ export default function Home() {
                           className="h-full w-full object-contain"
                         />
                       </div>
+
                       <h1 className="text-2xl font-semibold text-white/90">HumanKindAI</h1>
-                      <p className="mt-2 text-sm text-white/50">Start a conversation.</p>
+                      <p className="mt-2 text-sm text-white/50">
+                        Start a conversation. Choose a direction.
+                      </p>
 
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
-                        {["Help me calm down", "Rewrite this kindly", "Plan my day with balance"].map(
-                          (t) => (
-                            <button
-                              key={t}
-                              onClick={() => setInput(t)}
-                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 transition"
-                            >
-                              {t}
-                            </button>
-                          )
-                        )}
+                        {[
+                          "[MODE:GROUND] Calm down",
+                          "Get clarity",
+                          "Make a plan",
+                          "[MODE:PAUSE] Rewrite a message",
+                        ].map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setInput(t)}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 transition"
+                          >
+                            {t.replace(/^\[MODE:[A-Z]+\]\s*/, "")}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
                 )}
 
                 {activeChat?.messages.map((msg, index) => (
-                  <div
-                    key={index}
-                    className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div className="max-w-[90%] sm:max-w-[78%]">
+                  <div key={msg.id} className="mb-4">
+                    <div
+                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
                       <div
-                        className={`rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
+                        className={`max-w-[90%] sm:max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
                           msg.role === "user"
                             ? "bg-gradient-to-br from-blue-600/30 to-blue-500/10 border-blue-400/20 text-white/90 shadow-blue-500/10"
                             : "bg-white/[0.055] border-white/10 text-white/85"
@@ -813,25 +869,31 @@ export default function Home() {
                       >
                         {msg.content}
                       </div>
-
-                      {/* Quick replies (assistant only) */}
-                      {msg.role === "assistant" &&
-                        Array.isArray(msg.quickReplies) &&
-                        msg.quickReplies.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {msg.quickReplies.map((t) => (
-                              <button
-                                key={`${index}-${t}`}
-                                onClick={() => sendQuickReply(t)}
-                                disabled={loading}
-                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 transition disabled:opacity-50"
-                              >
-                                {t}
-                              </button>
-                            ))}
-                          </div>
-                        )}
                     </div>
+
+                    {/* Quick replies under assistant message */}
+                    {msg.role === "assistant" && msg.quickReplies && msg.quickReplies.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {msg.quickReplies.map((qr) => {
+                          const label = qr.replace(/^\[MODE:[A-Z]+\]\s*/, "");
+                          return (
+                            <button
+                              key={`${msg.id}-${qr}`}
+                              onClick={() => {
+                                if (!activeChat) return;
+                                // Hide old buttons so chat stays clean
+                                hideQuickRepliesForMessage(activeChat.id, msg.id);
+                                // Send quick reply as user message
+                                sendMessage(qr);
+                              }}
+                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 transition"
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ))}
 
@@ -862,7 +924,7 @@ export default function Home() {
 
                   {/* Mobile send only */}
                   <button
-                    onClick={() => sendText()}
+                    onClick={sendText}
                     disabled={loading || !input.trim()}
                     className={`md:hidden h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
                       input.trim()
@@ -876,14 +938,20 @@ export default function Home() {
                   </button>
                 </div>
 
+                {/* Optional composer helper chips */}
                 <div className="mt-2 flex flex-wrap gap-2 px-1 pb-1">
-                  {["Summarize", "Make it kinder", "Give 3 options"].map((t) => (
+                  {[
+                    "[MODE:GROUND] Calm down",
+                    "Get clarity",
+                    "Make a plan",
+                    "[MODE:PAUSE] Rewrite kindly",
+                  ].map((t) => (
                     <button
                       key={t}
                       onClick={() => setInput((prev) => (prev ? prev + " " + t : t))}
                       className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65 hover:bg-white/10 transition"
                     >
-                      {t}
+                      {t.replace(/^\[MODE:[A-Z]+\]\s*/, "")}
                     </button>
                   ))}
                 </div>
