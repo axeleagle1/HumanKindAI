@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Visit%20Site-blue?style=for-the-badge)](https://humankindai.vercel.app/)
+[![Built With Next.js](https://img.shields.io/badge/Built%20With-Next.js-black?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
+[![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)]()
 
-## Getting Started
+# HumanKindAI
 
-First, run the development server:
+**Not louder AI. Kinder AI.**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+HumanKindAI is a calm-first conversational system designed to feel emotionally safe.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Most AI tools optimize for speed and productivity.  
+HumanKindAI optimizes for **clarity, regulation, and responsible support**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+🌐 **Live Website:**  
+https://humankindai.vercel.app/
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Why This Exists
 
-To learn more about Next.js, take a look at the following resources:
+We are building tools that can write essays, generate code, and simulate worlds.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+But we are not building tools that help people:
+- Pause before reacting
+- Regulate emotional intensity
+- Think clearly during overwhelm
+- Avoid spiraling at 2 AM
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+HumanKindAI is an attempt to fix that.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Current Architecture (Hybrid Core)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+HumanKindAI currently runs a **structured emotional routing engine** with:
+
+### 1️⃣ Emotional Detection (Free Engine)
+Located in:
