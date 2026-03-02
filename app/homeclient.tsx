@@ -18,12 +18,11 @@ export default function HomeClient() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const chips = useMemo(
-    () => ["De-escalate", "Get clarity", "Decide", "Communicate"],
+    () => ["Regulate", "Reflect", "Decide", "Communicate"],
     []
   );
 
   useEffect(() => {
-    // Autofocus on desktop, avoid popping iPhone keyboard
     if (isLikelyDesktop()) inputRef.current?.focus();
   }, []);
 
@@ -82,13 +81,9 @@ export default function HomeClient() {
             How are you today?
           </h1>
 
-          <p className="mt-3 sm:mt-4 text-sm sm:text-base text-white/55">
-            KinderAI helps you move from emotion → clarity → action.
-          </p>
-
           {/* Input */}
           <form onSubmit={onSubmit} className="mt-8 sm:mt-10">
-            <div className="mx-auto flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl px-4 py-3 shadow-[0_0_60px_rgba(0,0,0,0.35)]">
+            <div className="mx-auto flex items-center gap-2 rounded-2xl border border-white/10 bg-white/4 backdrop-blur-2xl px-4 py-3 shadow-[0_0_60px_rgba(0,0,0,0.35)]">
               <input
                 ref={inputRef}
                 value={input}
@@ -127,39 +122,6 @@ export default function HomeClient() {
             </div>
           </form>
 
-          {/* Preview card */}
-          <div className="mt-10 sm:mt-12 mx-auto max-w-xl">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 sm:p-6 shadow-[0_0_60px_rgba(0,0,0,0.35)]">
-              <div className="text-left">
-                <div className="text-xs uppercase tracking-wider text-white/40">
-                  Preview
-                </div>
-                <div className="mt-2 text-sm text-white/70 leading-relaxed">
-                  <span className="text-white/85 font-semibold">You:</span>{" "}
-                  “I’m overwhelmed and don’t know what to do next.”
-                </div>
-                <div className="mt-3 text-sm text-white/70 leading-relaxed">
-                  <span className="text-white/85 font-semibold">KinderAI:</span>{" "}
-                  “Let’s slow it down. What’s the one thing that feels most
-                  urgent right now — time, money, or relationships?”
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {["Calm down", "Get clarity", "Make a plan"].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => go(t)}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 transition"
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Footer */}
           <div className="mt-16 flex items-center justify-between text-xs text-white/35">
             <div>© {new Date().getFullYear()} HumanKindAI</div>
@@ -173,4 +135,4 @@ export default function HomeClient() {
       </main>
     </div>
   );
-}   
+}

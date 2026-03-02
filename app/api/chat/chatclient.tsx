@@ -197,7 +197,11 @@ export default function ChatClient() {
         return;
       }
     }
-    const firstChat: Chat = { id: Date.now().toString(), title: "Untitled", messages: [] };
+    const firstChat: Chat = {
+      id: Date.now().toString(),
+      title: "Untitled",
+      messages: [],
+    };
     setChats([firstChat]);
     setActiveChatId(firstChat.id);
   }, []);
@@ -213,7 +217,11 @@ export default function ChatClient() {
   }, [activeChat?.messages, loading]);
 
   const createNewChat = () => {
-    const newChat: Chat = { id: Date.now().toString(), title: "Untitled", messages: [] };
+    const newChat: Chat = {
+      id: Date.now().toString(),
+      title: "Untitled",
+      messages: [],
+    };
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
     closeAllChatMenus();
@@ -226,7 +234,9 @@ export default function ChatClient() {
         if (c.id !== chatId) return c;
         return {
           ...c,
-          messages: c.messages.map((m) => (m.id === messageId ? { ...m, quickReplies: [] } : m)),
+          messages: c.messages.map((m) =>
+            m.id === messageId ? { ...m, quickReplies: [] } : m
+          ),
         };
       })
     );
@@ -237,7 +247,11 @@ export default function ChatClient() {
     const messageToSend = (text ?? "").trim();
     if (!messageToSend) return;
 
-    const userMessage: Message = { id: newId(), role: "user", content: messageToSend };
+    const userMessage: Message = {
+      id: newId(),
+      role: "user",
+      content: messageToSend,
+    };
 
     setChats((prev) =>
       prev.map((chat) =>
@@ -273,7 +287,9 @@ export default function ChatClient() {
 
       setChats((prev) =>
         prev.map((chat) =>
-          chat.id === activeChat.id ? { ...chat, messages: [...chat.messages, aiMessage] } : chat
+          chat.id === activeChat.id
+            ? { ...chat, messages: [...chat.messages, aiMessage] }
+            : chat
         )
       );
     } catch {
@@ -287,7 +303,9 @@ export default function ChatClient() {
 
       setChats((prev) =>
         prev.map((chat) =>
-          chat.id === activeChat.id ? { ...chat, messages: [...chat.messages, aiMessage] } : chat
+          chat.id === activeChat.id
+            ? { ...chat, messages: [...chat.messages, aiMessage] }
+            : chat
         )
       );
     } finally {
@@ -460,7 +478,7 @@ export default function ChatClient() {
 
       <button
         onClick={createNewChat}
-        className={`flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
+        className={`flex items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/25 transition ${
           !isMobile && sidebarCollapsed ? "h-12 w-12 mx-auto" : "px-4 py-2"
         }`}
         title="New chat"
@@ -524,7 +542,9 @@ export default function ChatClient() {
       )}
 
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
-        <div className="mt-8 mb-3 text-xs uppercase tracking-wider text-white/40">Your chats</div>
+        <div className="mt-8 mb-3 text-xs uppercase tracking-wider text-white/40">
+          Your chats
+        </div>
       )}
 
       {(isMobile || (!isMobile && !sidebarCollapsed)) && (
@@ -650,7 +670,7 @@ export default function ChatClient() {
                   <div
                     onClick={(e) => e.stopPropagation()}
                     style={{ top: mobileMenu.top, left: mobileMenu.left }}
-                    className="fixed z-[400] w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+                    className="fixed z-50 w-56 rounded-xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
                   >
                     <button
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
@@ -736,7 +756,7 @@ export default function ChatClient() {
 
       <div className="flex min-h-screen">
         <aside
-          className={`hidden md:flex border-r border-white/5 bg-white/[0.03] backdrop-blur-2xl flex-col transition-all duration-200 ${
+          className={`hidden md:flex border-r border-white/5 bg-white/3 backdrop-blur-2xl flex-col transition-all duration-200 ${
             sidebarCollapsed ? "w-20 p-4" : "w-72 p-6"
           }`}
         >
@@ -744,7 +764,7 @@ export default function ChatClient() {
         </aside>
 
         {mobileSidebarOpen && (
-          <div className="fixed inset-0 z-[200] md:hidden">
+          <div className="fixed inset-0 z-200 md:hidden">
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setMobileSidebarOpen(false)}
@@ -757,7 +777,7 @@ export default function ChatClient() {
 
         <main className="flex-1 flex flex-col items-center px-3 sm:px-6 py-5 sm:py-10">
           <div className="w-full max-w-4xl flex-1">
-            <div className="h-full rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col">
+            <div className="h-full rounded-3xl border border-white/10 bg-white/4 backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col">
               <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/5">
                 <div className="flex items-center gap-3 min-w-0">
                   <button
@@ -795,7 +815,7 @@ export default function ChatClient() {
                     {modelMenuOpen && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="hidden md:block absolute left-0 top-10 z-[500] w-[300px] rounded-2xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+                        className="hidden md:block absolute left-0 top-10 z-500 w-75 rounded-2xl border border-white/10 bg-[#0b1220]/95 backdrop-blur-xl shadow-2xl overflow-hidden"
                       >
                         <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-white/40">
                           Model
@@ -858,7 +878,11 @@ export default function ChatClient() {
                   <div className="h-full flex items-center justify-center">
                     <div className="max-w-md text-center">
                       <div className="mx-auto mb-4 h-14 w-14 rounded-3xl bg-white/5 border border-white/10 overflow-hidden shadow-lg shadow-blue-500/10">
-                        <img src="/logo.png" alt="HumanKindAI" className="h-full w-full object-contain" />
+                        <img
+                          src="/logo.png"
+                          alt="HumanKindAI"
+                          className="h-full w-full object-contain"
+                        />
                       </div>
 
                       <h1 className="text-2xl font-semibold text-white/90">KinderAI</h1>
@@ -893,8 +917,8 @@ export default function ChatClient() {
                       <div
                         className={`max-w-[90%] sm:max-w-[78%] rounded-2xl px-4 py-3 whitespace-pre-wrap border shadow-sm ${
                           msg.role === "user"
-                            ? "bg-gradient-to-br from-blue-600/30 to-blue-500/10 border-blue-400/20 text-white/90 shadow-blue-500/10"
-                            : "bg-white/[0.055] border-white/10 text-white/85"
+                            ? "bg-linear-to-br from-blue-600/30 to-blue-500/10 border-blue-400/20 text-white/90 shadow-blue-500/10"
+                            : "bg-white/5.5 border-white/10 text-white/85"
                         }`}
                       >
                         {msg.content}
@@ -936,7 +960,7 @@ export default function ChatClient() {
               <div className="rounded-2xl border border-white/10 bg-[#0b1220]/70 backdrop-blur-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/40 focus-within:border-blue-400/30 transition-all duration-200 shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
                 <div className="flex items-end gap-2">
                   <textarea
-                    className="min-h-[56px] flex-1 resize-none bg-transparent px-3 py-3 text-white/90 placeholder:text-white/35 outline-none"
+                    className="min-h-14 flex-1 resize-none bg-transparent px-3 py-3 text-white/90 placeholder:text-white/35 outline-none"
                     rows={2}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -994,7 +1018,7 @@ export default function ChatClient() {
         />
 
         {showApps && (
-          <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-999 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1220]/90 p-6 shadow-2xl">
               <h3 className="text-lg font-semibold mb-2">Apps</h3>
               <p className="text-white/55 text-sm mb-5">Future tools will appear here.</p>
@@ -1009,7 +1033,7 @@ export default function ChatClient() {
         )}
 
         {modelSheetOpen && (
-          <div className="fixed inset-0 z-[999] md:hidden">
+          <div className="fixed inset-0 z-999 md:hidden">
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setModelSheetOpen(false)}
@@ -1044,7 +1068,7 @@ export default function ChatClient() {
                 </button>
 
                 <button
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left hover:bg-white/10 transition"
+                  className="w-full rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-left hover:bg-white/10 transition"
                   onClick={() => {
                     setModelSheetOpen(false);
                     setUpgradeOpen(true);
@@ -1079,7 +1103,7 @@ export default function ChatClient() {
 
         {upgradeOpen && (
           <div
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            className="fixed inset-0 z-999 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
             onClick={() => setUpgradeOpen(false)}
           >
             <div
@@ -1144,7 +1168,7 @@ export default function ChatClient() {
 
         {deleteTargetId && (
           <div
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            className="fixed inset-0 z-999 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
             onClick={() => setDeleteTargetId(null)}
           >
             <div
@@ -1193,7 +1217,7 @@ export default function ChatClient() {
 
         {renameTargetId && (
           <div
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+            className="fixed inset-0 z-999 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
             onClick={() => setRenameTargetId(null)}
           >
             <div
