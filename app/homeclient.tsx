@@ -40,7 +40,7 @@ export default function HomeClient() {
   };
 
   return (
-    <div className="min-h-screen text-white">
+    <div className="min-h-screen text-white relative">
       {/* Background */}
       <div className="fixed inset-0 -z-10 bg-[#020617]" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(900px_circle_at_50%_0%,rgba(59,130,246,0.18),transparent_55%),radial-gradient(700px_circle_at_80%_20%,rgba(236,72,153,0.12),transparent_55%),radial-gradient(900px_circle_at_20%_80%,rgba(34,197,94,0.08),transparent_55%)]" />
@@ -75,7 +75,7 @@ export default function HomeClient() {
       </header>
 
       {/* Hero */}
-      <main className="mx-auto w-full max-w-6xl px-5 sm:px-8 pt-16 sm:pt-24 pb-16">
+      <main className="mx-auto w-full max-w-6xl px-5 sm:px-8 pt-16 sm:pt-24 pb-24">
         <div className="mx-auto max-w-2xl text-center">
           <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight text-white/95">
             How are you today?
@@ -101,7 +101,6 @@ export default function HomeClient() {
                     : "bg-white/10 text-white/30 cursor-not-allowed"
                 }`}
                 aria-label="Send"
-                title="Send"
               >
                 →
               </button>
@@ -121,18 +120,20 @@ export default function HomeClient() {
               ))}
             </div>
           </form>
-
-          {/* Footer */}
-          <div className="mt-16 flex items-center justify-between text-xs text-white/35">
-            <div>© {new Date().getFullYear()} HumanKindAI</div>
-            <div className="flex items-center gap-4">
-              <button className="hover:text-white/55 transition">Privacy</button>
-              <button className="hover:text-white/55 transition">Terms</button>
-              <button className="hover:text-white/55 transition">Contact</button>
-            </div>
-          </div>
         </div>
       </main>
+
+      {/* Bottom Left */}
+      <div className="fixed bottom-4 left-6 text-xs text-white/35">
+        © {new Date().getFullYear()} HumanKindAI
+      </div>
+
+      {/* Bottom Right */}
+      <div className="fixed bottom-4 right-6 flex items-center gap-4 text-xs text-white/35">
+        <button className="hover:text-white/55 transition">Privacy</button>
+        <button className="hover:text-white/55 transition">Terms</button>
+        <button className="hover:text-white/55 transition">Contact</button>
+      </div>
     </div>
   );
 }
