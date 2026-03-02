@@ -74,9 +74,9 @@ export default function HomeClient() {
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="mx-auto w-full max-w-6xl px-5 sm:px-8 pt-16 sm:pt-24 pb-24">
-        <div className="mx-auto max-w-2xl text-center">
+      {/* Hero - Slightly Lower Than Center */}
+      <main className="mx-auto w-full max-w-6xl px-5 sm:px-8 flex items-center justify-center min-h-screen pt-10 sm:pt-16">
+        <div className="mx-auto max-w-2xl text-center -mt-10 sm:-mt-14">
           <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight text-white/95">
             How are you today?
           </h1>
