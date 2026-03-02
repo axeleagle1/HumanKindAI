@@ -13,6 +13,39 @@ function isLikelyDesktop() {
   return finePointer && wide;
 }
 
+/* ---------- Glow Text Component ---------- */
+
+function GlowTextButton({
+  children,
+  onClick,
+  className = "",
+  title,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`relative inline-flex items-center justify-center outline-none group ${className}`}
+    >
+      <span className="relative z-10 text-white/75 group-hover:text-white transition-colors duration-200">
+        {children}
+      </span>
+
+      {/* soft glow */}
+      <span className="pointer-events-none absolute -inset-x-3 -inset-y-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 blur-md bg-white/10" />
+      <span className="pointer-events-none absolute -inset-x-4 -inset-y-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 blur-2xl bg-[radial-gradient(circle,rgba(99,102,241,0.25),transparent_70%)]" />
+    </button>
+  );
+}
+
+/* ---------- HomeClient ---------- */
+
 export default function HomeClient() {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,7 +78,7 @@ export default function HomeClient() {
       <div className="fixed inset-0 -z-10 bg-[#020617]" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(900px_circle_at_50%_0%,rgba(59,130,246,0.18),transparent_55%),radial-gradient(700px_circle_at_80%_20%,rgba(236,72,153,0.12),transparent_55%),radial-gradient(900px_circle_at_20%_80%,rgba(34,197,94,0.08),transparent_55%)]" />
 
-      {/* Top nav */}
+      {/* ---------- Top Nav ---------- */}
       <header className="mx-auto w-full max-w-6xl px-5 sm:px-8 pt-5 sm:pt-7 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shadow-lg">
@@ -55,26 +88,35 @@ export default function HomeClient() {
               className="h-full w-full object-contain"
             />
           </div>
-          <div className="font-semibold tracking-tight text-white/90">
+
+          <GlowTextButton
+            title="Home"
+            onClick={() => window.location.assign("/")}
+            className="font-semibold tracking-tight"
+          >
             HumanKindAI
-          </div>
+          </GlowTextButton>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button className="text-sm text-white/65 hover:text-white/85 transition">
+        <div className="flex items-center gap-5 text-sm">
+          <GlowTextButton
+            title="Log in"
+            onClick={() => alert("Login coming soon")}
+          >
             Log in
-          </button>
+          </GlowTextButton>
 
-          <button
+          <GlowTextButton
+            title="Try KinderAI"
             onClick={() => go("")}
-            className="rounded-full bg-white text-[#0b1220] px-4 py-2 text-sm font-semibold hover:bg-white/90 transition"
+            className="font-semibold"
           >
             Try KinderAI
-          </button>
+          </GlowTextButton>
         </div>
       </header>
 
-      {/* Hero - Slightly Lower Than Center */}
+      {/* ---------- Hero (slightly lower than center) ---------- */}
       <main className="mx-auto w-full max-w-6xl px-5 sm:px-8 flex items-center justify-center min-h-screen pt-10 sm:pt-16">
         <div className="mx-auto max-w-2xl text-center -mt-10 sm:-mt-14">
           <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight text-white/95">
@@ -123,16 +165,15 @@ export default function HomeClient() {
         </div>
       </main>
 
-      {/* Bottom Left */}
+      {/* ---------- Footer ---------- */}
       <div className="fixed bottom-4 left-6 text-xs text-white/35">
         © {new Date().getFullYear()} HumanKindAI
       </div>
 
-      {/* Bottom Right */}
-      <div className="fixed bottom-4 right-6 flex items-center gap-4 text-xs text-white/35">
-        <button className="hover:text-white/55 transition">Privacy</button>
-        <button className="hover:text-white/55 transition">Terms</button>
-        <button className="hover:text-white/55 transition">Contact</button>
+      <div className="fixed bottom-4 right-6 flex items-center gap-6 text-xs">
+        <GlowTextButton>Privacy</GlowTextButton>
+        <GlowTextButton>Terms</GlowTextButton>
+        <GlowTextButton>Contact</GlowTextButton>
       </div>
     </div>
   );
